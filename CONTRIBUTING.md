@@ -53,7 +53,7 @@ Each subject has one owning doc; a finding goes into that doc, in the same commi
 
 | rule | |
 |---|---|
-| one paragraph or list item per line, never hard-wrapped | `python3 tools/unwrap_md.py --check README.md CONTRIBUTING.md AGENTS.md docs/*.md` |
+| one paragraph or list item per line, never hard-wrapped | `python3 tools/unwrap_md.py --check README.md CONTRIBUTING.md AGENTS.md CHANGELOG.md SECURITY.md docs/*.md` |
 | keep it short: write what a reader needs, not what the code already says; prefer a generated figure to complex prose; point to a document rather than a section unless the section matters | |
 | source comments cite `docs/x.md §N`, so a renumbering rewrites every citation in the same commit | `python3 tools/docrefs.py` checks every citation resolves |
 | state what is true, in the present tense; no history, no dates, no `file:line` | the doc describes the tree as it is; git keeps the history |

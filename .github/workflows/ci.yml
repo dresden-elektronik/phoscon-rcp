@@ -1,0 +1,29 @@
+# Host suites and doc lints: no target toolchain, no hardware, and no board keys, so CI builds no release container.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the host suites
+        run: cmake -B build/test -S . && cmake --build build/test
+      - name: Run the host suites
+        run: ctest --test-dir build/test --output-on-failure
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: One line per paragraph
+        run: python3 tools/unwrap_md.py --check README.md CONTRIBUTING.md AGENTS.md CHANGELOG.md SECURITY.md docs/*.md
+      - name: Every section reference resolves
+        run: python3 tools/docrefs.py

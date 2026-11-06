@@ -53,7 +53,7 @@ A stick reports its release in `NCP_VERSION`: `DSPINEL/1.0; <radio>; phoscon-rcp
 
 ## Report a problem or request a feature
 
-Open a [GitHub issue](https://github.com/dresden-elektronik/phoscon-rcp/issues) for the firmware. A problem in a host or application belongs to that project. Pull requests are not merged: the maintainers make every change ([`CONTRIBUTING.md`](CONTRIBUTING.md)).
+Open a [GitHub issue](https://github.com/dresden-elektronik/phoscon-rcp/issues) for the firmware. A problem in a host or application belongs to that project. Pull requests are not merged: the maintainers make every change ([`CONTRIBUTING.md`](CONTRIBUTING.md)). Report a security problem privately ([`SECURITY.md`](SECURITY.md)). What changed in each release is [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Build it
 

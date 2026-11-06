@@ -248,7 +248,7 @@ GCFFlasher -t 30 -d <port> -f build/fw-cbrb1-rcp/phoscon-rcp.bin.GCF      # ConB
 
 To release, in this order:
 
-1. Set `VERSION`, update the sizes in `tools/diagrams/image_sizes.py` from a build of an export, and commit.
+1. Set `VERSION`, add its entry to `CHANGELOG.md`, update the sizes in `tools/diagrams/image_sizes.py` from a build of an export, and commit.
 2. Run `python3 tools/release_images.py --snapshot` with `GCFTOOL` naming the keyed tool, and flash each container on its board.
 3. Tag the commit `v<VERSION>`, run `python3 tools/release_images.py`, and attach `dist/<version>/` to the GitHub release: one container per board and `SHA256SUMS`. A tagged build differs from a snapshot in the version string, so flash the tagged containers again.
 4. Add the containers to the updater's manifest at <https://phoscon.de/updater>.

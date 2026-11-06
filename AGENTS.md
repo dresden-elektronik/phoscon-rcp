@@ -37,7 +37,7 @@ ctest --test-dir build/test --output-on-failure
 Doc lints — no build, no hardware, run before committing a doc change:
 
 ```
-python3 tools/unwrap_md.py --check README.md CONTRIBUTING.md AGENTS.md docs/*.md   # one line per paragraph
+python3 tools/unwrap_md.py --check README.md CONTRIBUTING.md AGENTS.md CHANGELOG.md SECURITY.md docs/*.md   # one line per paragraph
 python3 tools/docrefs.py                                                          # every §N resolves
 python3 tools/diagrams/all.py --check                                             # every figure current (Chrome)
 ```
@@ -66,7 +66,7 @@ GCFFlasher -t 20 -f build/fw/phoscon-rcp.bin.GCF -d <port>    # GCFFlasher 4.12.
 ## Documentation is the project's memory
 
 - Findings go into the doc that **owns the subject**; there is no diary. History — how a fact was found, what was tried and removed — does not go into a tracked doc; git keeps the commits.
-- The doc set: `README.md` (entry point: what this is, how to flash it) · `CONTRIBUTING.md` (issues, not pull requests; the rules and checks for a change) · `docs/boards.md` (the family map, and adding a board) · `docs/architecture.md` (layers, modules, data flow, buffers, state machines) · `docs/protocol.md` (host-facing Spinel contract) · `docs/hardware.md` (index of the hardware docs) · `docs/hardware_samr21.md` (`§1`–`§9`) · `docs/hardware_mg21.md` (`§10`–`§10.9`) · `docs/hardware_avr.md` (`§11`–`§11.8`) · `docs/ack-pending-frame.md` (the Ack's Frame Pending bit) · `docs/build-and-flash.md` (toolchain, artifacts, packaging, flashing, guard, recovery, releases) · `docs/testing.md` (suites, rig, emulator gates) · `docs/coding-rules.md` (the binding C conventions).
+- The doc set: `README.md` (entry point: what this is, how to flash it) · `CONTRIBUTING.md` (issues, not pull requests; the rules and checks for a change) · `CHANGELOG.md` (each release) · `SECURITY.md` (reporting a vulnerability) · `docs/boards.md` (the family map, and adding a board) · `docs/architecture.md` (layers, modules, data flow, buffers, state machines) · `docs/protocol.md` (host-facing Spinel contract) · `docs/hardware.md` (index of the hardware docs) · `docs/hardware_samr21.md` (`§1`–`§9`) · `docs/hardware_mg21.md` (`§10`–`§10.9`) · `docs/hardware_avr.md` (`§11`–`§11.8`) · `docs/ack-pending-frame.md` (the Ack's Frame Pending bit) · `docs/build-and-flash.md` (toolchain, artifacts, packaging, flashing, guard, recovery, releases) · `docs/testing.md` (suites, rig, emulator gates) · `docs/coding-rules.md` (the binding C conventions).
 - The reader is a human engineer new to the project: lead each section with its conclusion, one claim per paragraph, tables over prose, and a generated figure (`tools/diagrams/`) over complex prose.
 - **Keep the docs short.** Every paragraph must answer "does a reader of a mature project need this?" Detail the code and its comments already carry, research narrative and measurement logs do not belong in a doc. Point to a document rather than a section unless the section matters.
 - House rules for every doc: no `file:line` references, no dates, no `row N`, no "we tried"; impersonal present tense; section numbers are cited from source comments, so a renumbering rewrites every citation in the same commit (`tools/docrefs.py` checks that every `§N` points at a section that exists); the hardware docs share one numbering, and a new silicon starts at the next free top-level number; one purpose per doc.
