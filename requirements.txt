@@ -1,0 +1,4 @@
+# Python packages for tools/ (python3 -m venv .venv && .venv/bin/pip install -r requirements.txt)
+pyserial>=3.5
+cryptography>=42  # tools/rcp_enh_ack.py
+# tools/rb2_flash.py on the Raspberry Pi also needs the libgpiod 2 Python binding (gpiod).

@@ -1,0 +1,72 @@
+/* SPDX-License-Identifier: BSD-3-Clause
+   Copyright (c) 2026 dresden elektronik ingenieurtechnik gmbh
+
+   The figure style of the Phoscon design language, on its paper tokens: the documentation's
+   figures are light only. The first two blocks are the design language's own (tokens.css, the
+   .paper set, and figure.css), so a figure here names roles the way any Phoscon figure does; the
+   last block is what this project's figures add in the same grammar: tokens only, flat, no
+   shadow, amber as a fill with an ink keyline. figure.py inlines this file into every page. */
+
+:root {
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --page: #ffffff; --panel: #ffffff; --raised: #f2f1ed; --well: #ffffff;
+  --hair: #d6d4ce; --hair-strong: #9c9a94; --line: #6f6d68; --tick: #9c9a94; --tick-major: #161719;
+  --ink: #161719; --muted: #3c3e42; --faint: #55575c;
+  --amber: #f8c448; --on-amber: #161719; --ochre: #8a5a00; --amber-edge: #161719;
+  --ok: #1b7340; --green: #4eca7a; --green-edge: #161719; --err: #b3261e;
+  --cell-idle: #ffffff;
+  --board: #161719; --on-board: #ffffff;
+}
+
+/* ---- the design language's figure classes (figure.css) */
+
+svg.diag { display: block; color: var(--ink); }
+
+svg.diag .f-blk  { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+svg.diag .f-amb  { fill: var(--amber); stroke: var(--amber-edge); stroke-width: 1; }
+svg.diag .f-owe  { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 4; }
+svg.diag .f-tag  { fill: none; stroke: var(--ink); stroke-width: 1; }
+svg.diag .f-brd  { fill: var(--board); }
+svg.diag .f-gap  { fill: var(--well); stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+svg.diag .f-hd   { fill: var(--panel); stroke: var(--ink); stroke-width: 1; }
+
+svg.diag .f-id   { fill: var(--ink); font: 600 13px var(--mono); }
+svg.diag .f-msg  { fill: var(--ink); font: 600 12px var(--mono); }
+svg.diag .f-sub  { fill: var(--faint); font: 400 11px var(--sans); }
+svg.diag .f-aid  { fill: var(--on-amber); font: 600 13px var(--mono); }
+svg.diag .f-asub { fill: var(--on-amber); font: 400 11px var(--sans); }
+svg.diag .f-lab  { fill: var(--ink); font: 600 12px var(--mono); }
+svg.diag .f-head { fill: var(--ink); font: 600 13px var(--sans); }
+svg.diag .f-brt  { fill: var(--on-board); font: 600 13px var(--sans); }
+svg.diag .f-cap  { fill: var(--ink); font: 600 10.5px var(--mono); letter-spacing: .08em; }
+svg.diag .f-num  { fill: var(--ink); font: 600 11px var(--mono); }
+svg.diag .f-axl  { fill: var(--faint); font: 400 11px var(--mono); }
+
+svg.diag .f-rule { stroke: var(--line); stroke-width: 1; fill: none; }
+svg.diag .f-life { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; }
+svg.diag .f-out  { stroke: var(--ink); stroke-width: 1.25; fill: none; }
+svg.diag .f-back { stroke: var(--line); stroke-width: 1.25; fill: none; stroke-dasharray: 4 3; }
+svg.diag .f-br   { stroke: var(--ink); stroke-width: 1; fill: none; }
+svg.diag .f-now  { fill: var(--amber); stroke: var(--amber-edge); stroke-width: 1; }
+svg.diag .k-ink  { fill: var(--ink); }
+svg.diag .k-line { fill: var(--line); }
+
+/* ---- this project's additions, in the same grammar */
+
+svg.diag .f-bsub  { fill: var(--on-board); font: 400 11px var(--sans); }      /* a line under a board name */
+svg.diag .f-bid   { fill: var(--on-board); font: 600 13px var(--mono); }      /* an identifier on a board fill */
+svg.diag .f-title { fill: var(--ink); font: 600 12px var(--mono); letter-spacing: .08em; } /* the figure's caps title */
+svg.diag .f-lead  { fill: var(--muted); font: 400 12px var(--sans); }         /* the line under the title */
+svg.diag .f-bit   { fill: var(--faint); font: 400 10px var(--mono); }         /* a bit number or an offset */
+svg.diag .f-band  { fill: var(--raised); }                                    /* a context band: interrupt, loop */
+svg.diag .f-keep  { fill: url(#f-hatch); stroke: var(--ink); stroke-width: 1; } /* must survive: not this firmware's to write */
+svg.diag .f-hatchl { stroke: var(--hair-strong); stroke-width: 1; }
+svg.diag .f-alt   { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; } /* an alternative in a sequence */
+svg.diag .f-pass  { fill: var(--green); stroke: var(--green-edge); stroke-width: 1; }
+svg.diag .f-fail  { fill: var(--panel); stroke: var(--err); stroke-width: 2; }
+svg.diag .f-none  { fill: var(--well); stroke: var(--hair-strong); stroke-width: 1; }
+svg.diag .f-tick  { stroke: var(--tick); stroke-width: 1; }
+svg.diag .f-tickm { stroke: var(--tick-major); stroke-width: 1; }
+svg.diag .f-err   { fill: var(--err); font: 600 11px var(--mono); }
+svg.diag .f-ok    { fill: var(--ok); font: 600 11px var(--mono); }

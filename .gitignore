@@ -1,0 +1,36 @@
+# reference corpus: external clones, datasheets and their index stay untracked
+refs/
+
+# build artifacts (CMake)
+build/
+dist/
+*.o
+*.a
+*.elf
+*.map
+*.bin
+*.hex
+*.gcf
+*.gbl
+
+# host tool caches / editor / OS
+__pycache__/
+*.swp
+.DS_Store
+.venv/
+.venv-tools/
+
+# an OpenThread host started from the tree leaves its settings here
+tmp/
+
+# local notes and the history removed from the public docs
+docs/tmp/
+
+# maintainers' bench, ports and local tool paths (read by agents after AGENTS.md)
+AGENTS.local.md
+
+# maintainers' tools, not released
+internal/
+
+# a local build of tools/ice_dapreset.c
+tools/ice_dapreset
