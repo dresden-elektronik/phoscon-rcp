@@ -875,6 +875,72 @@ TU_TEST(a_stale_completion_is_not_answered)
     TU_EQ(reply[0], 0x85u);
 }
 
+/* Rcp_Healthy gates the watchdog feed (docs/architecture.md §7): only a transmission that outlives
+ * RCP_TX_STUCK_MS plus its own delay makes the session unhealthy. */
+TU_TEST(a_transmission_that_never_completes_makes_the_session_unhealthy)
+{
+    static const uint8_t psdu[3] = {0x01u, 0x00u, 0x42u};
+    uint8_t payload[64];
+    uint8_t reply[OUT];
+    U_BStream bs;
+    const uint32_t t0 = 0xFFFFFF00uL; /* the tick wraps while the frame is open */
+
+    freshSession();
+    sinkRefuse = 0;
+    Rcp_SetTxSink(&session, fakeSink, 0);
+    enableRawStream();
+
+    /* Idle is healthy whatever the time. */
+    TU_EQ(Rcp_Healthy(&session, 0u), 1);
+    TU_EQ(Rcp_Healthy(&session, 0x80000000uL), 1);
+
+    (void)setStreamRaw(5u, payload, txPayload(payload, psdu, 3u, 26u, 0, 0u), reply);
+
+    /* The first look starts the clock; the limit itself is still healthy, one past it is not. */
+    TU_EQ(Rcp_Healthy(&session, t0), 1);
+    TU_EQ(Rcp_Healthy(&session, t0 + RCP_TX_STUCK_MS), 1);
+    TU_EQ(Rcp_Healthy(&session, t0 + RCP_TX_STUCK_MS + 1u), 0);
+
+    /* A late completion makes it healthy again, and the next frame gets a clock of its own. */
+    U_bstream_init(&bs, reply, OUT);
+    TU_EQ(Rcp_TxDone(&session, 5u, RADIO_TX_OK, 0, &bs), 6u);
+    TU_EQ(Rcp_Healthy(&session, t0 + RCP_TX_STUCK_MS + 2u), 1);
+
+    (void)setStreamRaw(6u, payload, txPayload(payload, psdu, 3u, 26u, 0, 0u), reply);
+    TU_EQ(Rcp_Healthy(&session, t0 + 2u * RCP_TX_STUCK_MS), 1);
+    TU_EQ(Rcp_Healthy(&session, t0 + 3u * RCP_TX_STUCK_MS), 1);
+    TU_EQ(Rcp_Healthy(&session, t0 + 3u * RCP_TX_STUCK_MS + 1u), 0);
+}
+
+TU_TEST(a_timed_transmission_has_its_delay_on_top_of_the_limit)
+{
+    static const uint8_t psdu[3] = {0x01u, 0x00u, 0x42u};
+    uint8_t payload[64];
+    uint8_t reply[OUT];
+    uint16_t len;
+    const uint32_t delayUs = 3000000uL; /* 3 s */
+    const uint16_t trailer = (uint16_t)(2u + sizeof(psdu));
+
+    freshSession();
+    sinkRefuse = 0;
+    Rcp_SetTxSink(&session, fakeSink, 0);
+    enableRawStream();
+
+    len = txPayload(payload, psdu, 3u, 26u, 0, 0u);
+    payload[trailer + 7u] = (uint8_t)delayUs;
+    payload[trailer + 8u] = (uint8_t)(delayUs >> 8);
+    payload[trailer + 9u] = (uint8_t)(delayUs >> 16);
+    payload[trailer + 10u] = (uint8_t)(delayUs >> 24);
+    (void)setStreamRaw(5u, payload, len, reply);
+    TU_EQ(sinkReq.txDelay, delayUs);
+
+    /* Never earlier than the delay plus the limit: a frame asked for 3 s ahead is not stuck at 3 s. */
+    TU_EQ(Rcp_Healthy(&session, 0u), 1);
+    TU_EQ(Rcp_Healthy(&session, 3000u + RCP_TX_STUCK_MS), 1);
+    TU_EQ(Rcp_Healthy(&session, RCP_TX_STUCK_MS + (delayUs >> 9)), 1);
+    TU_EQ(Rcp_Healthy(&session, RCP_TX_STUCK_MS + (delayUs >> 9) + 1u), 0);
+}
+
 /* The property handler's status is the answer, not NOMEM (docs/protocol.md §5). */
 TU_TEST(a_get_that_fails_reports_the_handlers_status)
 {
@@ -1249,6 +1315,10 @@ int main(void)
          a_completion_carries_the_radios_outcome_and_the_acks_frame_pending_bit},
         {"a_key_is_answered_with_last_status_and_never_read_back", a_key_is_answered_with_last_status_and_never_read_back},
         {"the_radio_clock_answers_a_get_with_a_payload", the_radio_clock_answers_a_get_with_a_payload},
+        {"a_transmission_that_never_completes_makes_the_session_unhealthy",
+         a_transmission_that_never_completes_makes_the_session_unhealthy},
+        {"a_timed_transmission_has_its_delay_on_top_of_the_limit",
+         a_timed_transmission_has_its_delay_on_top_of_the_limit},
         {"a_reset_forgets_the_keys", a_reset_forgets_the_keys},
         {"a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header",
          a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header},

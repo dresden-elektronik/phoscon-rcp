@@ -241,7 +241,26 @@ static uint16_t rcpSetStreamRaw(Rcp_Session *s, U_BStream *out, const Spinel_Fra
 
     s->txInFlight = 1;
     s->txTid = f->tid;
+    s->txWatched = 0;
+    /* µs to ms by >> 9: about twice the delay, never less, and no divide on a core without one. */
+    s->txLimitMs = RCP_TX_STUCK_MS + (req.txDelay >> 9);
     return 0u;
+}
+
+int Rcp_Healthy(Rcp_Session *s, uint32_t nowMs)
+{
+    if (s == 0 || !s->txInFlight)
+        return 1;
+
+    if (!s->txWatched)
+    {
+        s->txWatched = 1;
+        s->txSinceMs = nowMs;
+        return 1;
+    }
+
+    /* Elapsed time as an unsigned difference, so the tick may wrap in between. */
+    return (uint32_t)(nowMs - s->txSinceMs) <= s->txLimitMs ? 1 : 0;
 }
 
 void Rcp_SetTxSink(Rcp_Session *s, Rcp_TxSink sink, void *ctx)

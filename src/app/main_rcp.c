@@ -21,3 +21,8 @@ void App_Poll(uint32_t ms)
     (void)ms;
     RcpApp_Poll();
 }
+
+int App_Healthy(uint32_t ms)
+{
+    return RcpApp_Healthy(ms);
+}

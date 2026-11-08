@@ -796,6 +796,19 @@ uint32_t RcpApp_TxDropped(void)
     return rcpTxDropped;
 }
 
+int RcpApp_Healthy(uint32_t ms)
+{
+    static int wasHealthy = 1;
+    int healthy = Rcp_Healthy(&rcpSession, ms);
+
+    /* Once, where it turns: the watchdog reset that follows says only that the loop stopped feeding. */
+    if (wasHealthy && !healthy)
+        DBG(DBG_COMP_APP, DBG_APP_RSN_TX_STUCK);
+
+    wasHealthy = healthy;
+    return healthy;
+}
+
 void RcpApp_PushFromIrq(const uint8_t *buf, uint16_t len)
 {
     uint16_t i;

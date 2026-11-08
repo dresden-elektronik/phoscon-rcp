@@ -213,8 +213,10 @@ enum
                                    is a record rather than an inference */
     DBG_APP_RSN_SCAN_MS,         /* how long that dwell actually ran, in milliseconds of the board's own
                                    clock: the only way to tell a period from a pace */
-    DBG_APP_RSN_LINK_INIT_FAIL   /* COM_Init reported the host link could not be armed (hal/com.h); the
+    DBG_APP_RSN_LINK_INIT_FAIL,  /* COM_Init reported the host link could not be armed (hal/com.h); the
                                    link then never reports present, and this record is the only sign of it */
+    DBG_APP_RSN_TX_STUCK         /* a transmission stayed in flight past RCP_TX_STUCK_MS (rcp/session.h):
+                                   the loop stops feeding the watchdog, and its reset follows */
 };
 
 /* RF / SERCOM4-SPI reasons: a bounded sync wait ran out, each naming the register

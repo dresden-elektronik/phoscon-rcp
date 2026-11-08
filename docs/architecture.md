@@ -155,6 +155,7 @@ The radio vector preempts everything but a UART link's vector, because the Ack's
 - **Shared state is `volatile`**, and a value wider than the core's word that a handler writes is read under `HAL_IrqLock`.
 - **Deadlines are compared as `(int32_t)(now - deadline)`**, so the 32-bit millisecond tick may wrap.
 - **Only a completed loop pass feeds the watchdog.** While booting, every bounded wait feeds it; from the first pass on, only the main loop does, and never a handler, which keeps running while the loop hangs. A watchdog reset therefore means the loop stopped; the SAMR21 and AVR boards report the reset cause at the next boot.
+- **A pass feeds only while the app is healthy** (`App_Healthy`). Every state machine first recovers on its own deadline; the health check is the backstop for one whose recovery failed. In the `rcp` image the session is unhealthy once a transmission stays in flight `RCP_TX_STUCK_MS` (2 s) beyond the delay it asked for: its completion is lost, and every later transmission would be answered `BUSY`. The scan needs no check, because every one of its phases ends on a deadline or a limit.
 
 ## 8. Debug records
 

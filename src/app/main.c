@@ -125,7 +125,9 @@ int main(void)
             LoopDiag_Begin();
             COM_NotifyPoll();
             LoopDiag_End(LOOP_DIAG_LINE_COM_NOTIFY);
-            Wdt_Feed();
+
+            if (App_Healthy(ms))
+                Wdt_Feed();
         }
 #ifdef DS_SCRATCH_ROW
         /* The only place an ISR-queued record can reach flash: Nvram_StatusStage and

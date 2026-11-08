@@ -24,4 +24,8 @@ void App_DataOut(const uint8_t *buf, uint16_t len);
 /* Once per main-loop pass, while the bring-up succeeded. */
 void App_Poll(uint32_t ms);
 
+/* After App_Poll, every pass: 0 when this mode's work stopped making progress, which withholds the
+ * watchdog feed (docs/architecture.md §7). */
+int App_Healthy(uint32_t ms);
+
 #endif

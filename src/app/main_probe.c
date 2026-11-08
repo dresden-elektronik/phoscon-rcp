@@ -44,3 +44,10 @@ void App_Poll(uint32_t ms)
 #endif
     COM_TxPoll();
 }
+
+/* Nothing here waits on an outcome, so nothing can stop making progress. */
+int App_Healthy(uint32_t ms)
+{
+    (void)ms;
+    return 1;
+}

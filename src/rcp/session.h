@@ -26,6 +26,12 @@
  * and the frame, then a key index and a four-octet frame counter. */
 #define RCP_TX_DONE_MAX (4u + 5u + 2u + 28u + RCP_TX_ACK_MAX + 5u)
 
+/* How long a transmission may stay in flight, beyond the delay it asked for, before the session calls
+ * itself unhealthy. Every back-end reports an outcome within its own deadline, retries and backoffs
+ * included, which is tens of milliseconds; a transmission still open after this lost its completion,
+ * and every later STREAM_RAW would be answered BUSY. */
+#define RCP_TX_STUCK_MS 2000u
+
 typedef int (*Rcp_TxSink)(void *ctx, const PropsStream_TxRequest *req, uint8_t tid);
 
 typedef struct
@@ -44,6 +50,10 @@ typedef struct
     void *txCtx;
     int txInFlight;
     uint8_t txTid;
+    /* Rcp_Healthy's clock on the transmission in flight: cleared at submit, started on its first look. */
+    int txWatched;
+    uint32_t txSinceMs;
+    uint32_t txLimitMs;
 #ifdef RCP_THREAD
     MacSec_TxResult txSec;
     const Radio_Frame *txAck;
@@ -66,5 +76,10 @@ void Rcp_SetTxAck(Rcp_Session *s, const Radio_Frame *ack);
 #endif
 
 uint16_t Rcp_TxDone(Rcp_Session *s, uint8_t tid, int radioStatus, int framePending, U_BStream *out);
+
+/* 0 once a transmission has been in flight longer than RCP_TX_STUCK_MS plus its own delay, else 1.
+ * Called once per main-loop pass, which gates the watchdog feed on it (docs/architecture.md §7); the
+ * first call that sees a transmission starts its clock. */
+int Rcp_Healthy(Rcp_Session *s, uint32_t nowMs);
 
 #endif
