@@ -97,6 +97,7 @@ Full-speed device; `GCLK_USB` must be 48 MHz ±0.25 %.
 | EP3 IN | interrupt (CDC notify) | 64 B |
 
 - The endpoint descriptor table must sit in SRAM, 4-byte aligned. An IN bank is ready when `BK1RDY` is set; an OUT bank is armed when `BK0RDY` is cleared.
+- Every endpoint direction has its own packet buffer. The module sends an IN bank from the buffer its `ADDR` names whenever the host asks, so a control reply written into EP1's buffer overwrites a bulk packet still waiting there.
 - Route `GCLK_USB` before the module's `SWRST`; take `PADCAL` from the calibration area; hold `DETACH` until EP0 is ready.
 - Interrupt flags are cleared by writing them back; nothing is acknowledged automatically.
 - A host completes a bulk read on a short packet, so a reply that ends on a full packet stays pending until the next one arrives: 500 ms was measured. The firmware sends the last octet of such a reply on its own.

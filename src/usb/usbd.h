@@ -29,6 +29,7 @@ typedef void (*usbd_config_cb_t)(uint8_t cfg_value, void *arg);
 typedef struct
 {
     uint8_t *ep0_rx; /* 64 bytes, SETUP + data-out buffer */
+    uint8_t *ep0_tx; /* 64 bytes, data-in buffer; never a bulk endpoint's */
     uint8_t *ep1_rx;
     uint8_t *ep2_rx;
     uint8_t *ep1_tx;

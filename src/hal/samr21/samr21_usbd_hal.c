@@ -367,8 +367,10 @@ static UsbDescBank *bankOf(uint8_t ep, int in)
     return &usbHalDescBank[ep][in ? USBD_BANK_IN : USBD_BANK_OUT];
 }
 
-/* One shared buffer per endpoint direction (usbd_cfg_t contract): the bank's
- * ADDR points at it, so driver and module touch the same place. */
+/* One buffer per endpoint direction (usbd_cfg_t contract): the bank's ADDR
+ * points at it, so driver and module touch the same place. No two directions
+ * share one: a control reply is written from the USB vector while a bulk packet
+ * may still wait in its bank. */
 static uint8_t *bufOf(uint8_t ep, int in)
 {
     const usbd_cfg_t *cfg = usbd_config();
@@ -379,7 +381,7 @@ static uint8_t *bufOf(uint8_t ep, int in)
     switch (ep)
     {
         case 0:
-            return in ? cfg->ep1_tx : cfg->ep0_rx;
+            return in ? cfg->ep0_tx : cfg->ep0_rx;
         case 1:
             return in ? cfg->ep1_tx : cfg->ep1_rx;
         case 2:

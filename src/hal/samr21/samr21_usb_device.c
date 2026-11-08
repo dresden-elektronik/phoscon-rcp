@@ -32,6 +32,7 @@
 /* Static, one full-speed packet each, as the descriptor table promises the host;
  * no allocation in this tree (coding-rules §7). */
 static uint8_t ep0Buf[64];     /* SETUP + EP0 data-out stage */
+static uint8_t ep0InBuf[64];   /* EP0 data-in stage */
 static uint8_t dataInBuf[64];  /* EP1 IN bank target */
 static uint8_t dataOutBuf[64]; /* EP2 OUT bank target */
 static uint8_t notifInBuf[64]; /* EP3 IN bank target */
@@ -41,7 +42,8 @@ static uint8_t dbgDrain[64];   /* record queue drain */
 #define USB_CDC_IN_MAX ((uint16_t)USBC_TX_MAX)
 
 typedef char usbDeviceBuffersAreOnePacket
-    [(sizeof(ep0Buf) == sizeof(dataInBuf)) && (sizeof(dataInBuf) == USBD_BULK_MPS) ? 1 : -1];
+    [(sizeof(ep0Buf) == USBD_EP0_MPS) && (sizeof(ep0InBuf) == USBD_EP0_MPS) &&
+     (sizeof(dataInBuf) == USBD_BULK_MPS) ? 1 : -1];
 typedef char usbCdcInMaxIsOnePacket[(USBC_TX_MAX == sizeof(dbgDrain)) ? 1 : -1];
 
 static void usbDeviceBulkInDone(uint8_t ep, uint16_t len, void *arg);
@@ -50,6 +52,7 @@ static void usbDeviceOnConfig(uint8_t cfgValue, void *arg);
 static int usbDeviceClassRequest(const uint8_t *s8, void *arg);
 
 static const usbd_cfg_t usbDeviceCfg = {.ep0_rx = ep0Buf,
+                                        .ep0_tx = ep0InBuf,
                                         .ep1_rx = 0, /* EP1 has no OUT direction on this device */
                                         .ep2_rx = dataOutBuf,
                                         .ep1_tx = dataInBuf,
