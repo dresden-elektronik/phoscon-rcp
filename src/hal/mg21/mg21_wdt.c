@@ -22,6 +22,8 @@
 
 static uint32_t wdtPeriodSel;
 static int wdtArmed;
+/* 1 once the main loop runs (hal/hal.h); read from vectors too. */
+static volatile int wdtLooping;
 
 /* 1 when WDOG0->SYNCBUSY has cleared every bit in `mask` inside the limit. */
 static int wdtWaitSync(uint32_t mask, uint16_t rsn)
@@ -119,8 +121,14 @@ void Wdt_Feed(void)
     MG21_WDOG0->CMD = MG21_WDOG_CMD_CLEAR;
 }
 
+void Wdt_LoopStart(void)
+{
+    wdtLooping = 1;
+}
+
+/* Only while booting (hal/hal.h). */
 void Wdt_FeedPoll(uint32_t round)
 {
-    if ((round & (MG21_WDT_FEED_EVERY - 1u)) == (MG21_WDT_FEED_EVERY - 1u))
+    if (!wdtLooping && (round & (MG21_WDT_FEED_EVERY - 1u)) == (MG21_WDT_FEED_EVERY - 1u))
         Wdt_Feed();
 }

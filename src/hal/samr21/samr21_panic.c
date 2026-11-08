@@ -34,8 +34,8 @@ void Panic_Enter(uint16_t component, uint16_t line, uint16_t reason)
     (void)line;
     (void)reason;
 
-    /* Stop the SysTick feed; the hold below feeds the WDT explicitly, so the
-   * reset that arrives is ours, at a known time. */
+    /* Nothing else runs on the way out; the hold below feeds the WDT explicitly, so
+   * the reset that arrives is ours, at a known time. */
     HAL_IrqLock();
 
     /* Terminal path, usually handler mode: hold for the band reached, feeding the

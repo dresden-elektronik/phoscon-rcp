@@ -89,8 +89,12 @@ uint32_t Tick_CyclesSince(uint32_t stamp);
 void Tick_ClockStart(void);
 uint32_t Tick_ClockUs(void);
 
-/* ---- Watchdog ---- */
+/* ---- Watchdog ----
+ * Booting, every bounded wait feeds it (Wdt_FeedPoll). Wdt_LoopStart, called once by the main loop
+ * before its first pass, ends that: from then on only a completed pass feeds, so the watchdog proves
+ * the loop runs, not that some wait is still spinning. No vector ever feeds it (docs/architecture.md §7). */
 void Wdt_Feed(void);
+void Wdt_LoopStart(void);
 
 /* ---- Radio master clock (hal/samr21/samr21_rf.c) ---- */
 /* SPI-wake the AT86RF233 and force CLKM to the vendor 8 MHz. 1 = provably

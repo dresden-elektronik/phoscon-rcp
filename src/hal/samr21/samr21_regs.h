@@ -186,6 +186,9 @@ typedef struct
     volatile uint32_t APBAMASK; /* +0x18  APB-A clock mask */
     volatile uint32_t APBBMASK; /* +0x1C  APB-B clock mask */
     volatile uint32_t APBCMASK; /* +0x20  APB-C clock mask */
+    uint8_t pad2[20];           /* +0x24..0x37 */
+    volatile uint8_t RCAUSE;    /* +0x38  the last reset's cause, read-only (14.8.14;
+                                 * bits in dbg.h DBG_WITNESS_RSN_SAMR21_RCAUSE) */
 } Samr21Pm;
 
 #define PM_AHBMASK_NVMCTRL (1u << 4)

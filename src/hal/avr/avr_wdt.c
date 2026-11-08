@@ -22,6 +22,9 @@
 #define WDT_PERIOD_2S (AVR_BIT(AVR_WDP2) | AVR_BIT(AVR_WDP1) | AVR_BIT(AVR_WDP0))
 #define WDT_PERIOD_MASK (AVR_BIT(AVR_WDP3) | AVR_BIT(AVR_WDP2) | AVR_BIT(AVR_WDP1) | AVR_BIT(AVR_WDP0))
 
+/* 1 once the main loop runs (hal/hal.h); read from vectors too. One byte, so no torn read. */
+static volatile uint8_t wdtLooping;
+
 static void wdtWrite(uint8_t value)
 {
     uint8_t sreg = AvrOwn_LockSave();
@@ -57,9 +60,15 @@ void Wdt_Feed(void)
     __builtin_avr_wdr();
 }
 
+void Wdt_LoopStart(void)
+{
+    wdtLooping = 1u;
+}
+
+/* Only while booting (hal/hal.h). */
 void Wdt_FeedPoll(uint32_t round)
 {
-    if ((round & (AVR_WDT_FEED_EVERY - 1u)) == (AVR_WDT_FEED_EVERY - 1u))
+    if (wdtLooping == 0u && (round & (AVR_WDT_FEED_EVERY - 1u)) == (AVR_WDT_FEED_EVERY - 1u))
         Wdt_Feed();
 }
 

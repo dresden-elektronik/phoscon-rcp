@@ -64,9 +64,10 @@ int main(void)
     COM_SetRxHandler(onComDataOut);
     App_Boot();
 
-    /* Feed the WDT each wake, but only if the 48 MHz bring-up succeeded
-     * (wdtFeedGate, samr21_clock.c). Deadline arithmetic is modular, so it is
-     * correct across the 49.7 d tick wrap. */
+    /* From here on a completed pass is the only thing that feeds the WDT (hal/hal.h),
+     * and only when HAL_Init reported the bring-up good: a failed one ends in the
+     * watchdog reset. Deadline arithmetic is modular, so it is correct across the
+     * 49.7 d tick wrap. */
 #ifdef DS_SCRATCH_ROW
     uint32_t nextStatusMs = STATUS_FIRST_MS;
 #endif
@@ -76,6 +77,7 @@ int main(void)
 #endif
     nextReplayMs = REPLAY_FIRST_MS;
     replays = 0u;
+    Wdt_LoopStart();
 
     for (;;)
     {

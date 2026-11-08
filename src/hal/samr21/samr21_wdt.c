@@ -21,9 +21,17 @@ void Wdt_Feed(void)
     SAMR21_WDT->CLEAR = WDT_CLEAR;
 }
 
-/* Bounded waits feed every 64th round, not every poll. */
+/* 1 once the main loop runs (hal/hal.h); read from vectors too. */
+static volatile int wdtLooping;
+
+void Wdt_LoopStart(void)
+{
+    wdtLooping = 1;
+}
+
+/* Bounded waits feed every 64th round, not every poll, and only while booting. */
 void Wdt_FeedPoll(uint32_t round)
 {
-    if ((round & 0x3Fu) == 0x3Fu)
+    if (!wdtLooping && (round & 0x3Fu) == 0x3Fu)
         Wdt_Feed();
 }

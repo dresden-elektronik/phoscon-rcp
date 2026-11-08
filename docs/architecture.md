@@ -154,6 +154,7 @@ The radio vector preempts everything but a UART link's vector, because the Ack's
 - **Nothing stalls the bus.** A stalled store blocks every vector on a Cortex-M0+, so the watchdog feed skips while its register synchronises (`docs/hardware_samr21.md`).
 - **Shared state is `volatile`**, and a value wider than the core's word that a handler writes is read under `HAL_IrqLock`.
 - **Deadlines are compared as `(int32_t)(now - deadline)`**, so the 32-bit millisecond tick may wrap.
+- **Only a completed loop pass feeds the watchdog.** While booting, every bounded wait feeds it; from the first pass on, only the main loop does, and never a handler, which keeps running while the loop hangs. A watchdog reset therefore means the loop stopped; the SAMR21 and AVR boards report the reset cause at the next boot.
 
 ## 8. Debug records
 

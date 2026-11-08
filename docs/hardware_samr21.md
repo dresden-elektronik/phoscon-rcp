@@ -82,7 +82,8 @@ What the firmware reads from them:
 
 - The WDT is clocked by a GCLK **channel** (channel 3 → gen4, Figure 1), not by its enable bit; a dead channel stops it whatever `CTRL` says.
 - The bootloader sets `ALWAYSON` on every boot, at 8 s: the app cannot change the period or stop the timer, and the bootloader's clock teardown leaves the watchdog's channel alone.
-- **`Wdt_Feed` skips a feed while `STATUS.SYNCBUSY` is set.** A feed issued while the previous one synchronises stalls the bus for about 21 000 cycles, and on a Cortex-M0+ a stalled bus blocks every interrupt. With a waiting feed SysTick's handler took up to 588 µs; with the skip, at most 248 cycles. A feed in flight restarts the period when it lands, so skipping is safe.
+- **`Wdt_Feed` skips a feed while `STATUS.SYNCBUSY` is set.** A feed issued while the previous one synchronises stalls the bus for about 21 000 cycles, and on a Cortex-M0+ a stalled bus blocks every interrupt. A feed in flight restarts the period when it lands, so skipping is safe.
+- **`PM.RCAUSE` names the last reset** and stays latched until the next one; the image emits it at boot. The bootloader jumps to the app without a reset, so a watchdog reset of the image still reads `WDT` (bit 5). So does the first boot after an update: the bootloader ends an update with a watchdog reset of its own.
 
 ## 5. USB device
 

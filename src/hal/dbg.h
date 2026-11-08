@@ -488,7 +488,9 @@ enum
     DBG_WITNESS_RSN_AVR_UART_RX_OF,   /* octets the receiver lost to an overrun (DOR0) */
     DBG_WITNESS_RSN_AVR_UART_RX_FERR, /* octets dropped as framed wrong (FE0) */
     DBG_WITNESS_RSN_AVR_FAULT_COMPONENT, /* what a previous run panicked in */
-    DBG_WITNESS_RSN_AVR_FAULT_DETAIL     /* the reason it panicked with */
+    DBG_WITNESS_RSN_AVR_FAULT_DETAIL,    /* the reason it panicked with */
+    DBG_WITNESS_RSN_SAMR21_RCAUSE        /* PM.RCAUSE, the last reset's cause as the bootloader left
+                                          * it: POR 0, BOD12 1, BOD33 2, EXT 4, WDT 5, SYST 6 */
 };
 
 /* Register monitor replies (DBG_COMP_MON, app/monitor_app.c, docs/hardware_mg21.md §10.5). One

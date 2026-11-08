@@ -1152,10 +1152,6 @@ void Clock_DieRevisionReadOut(void)
 #define CLOCK_PROBE_BAND_GEN1_COMPLETES 2200u
 #define CLOCK_PROBE_BAND_REFCH_COMPLETES 3400u
 
-/* 8-vs-48 discriminator: the WDT is fed only while the 48 MHz bring-up succeeded, so a
- * failed bring-up WDT-resets instead of sitting as an invisible zombie. */
-static int wdtFeedGate;
-
 static void systickInit(uint32_t cpuHz);
 
 int Clock_Init(void)
@@ -1422,10 +1418,9 @@ int Clock_Init(void)
 
     Clock_Stamp(DBG_TIME_RSN_USB_CLOCK);
 
-    /* 11. 1 ms tick either way; on failure the app lives (silently) at 8 MHz and stops
-   * feeding the WDT from the tick (the wdtFeedGate discriminator), so the 8 MHz case ends
-   * in a known gap instead of an 8 s watchdog bite. */
-    wdtFeedGate = ok;
+    /* 11. 1 ms tick either way. The tick never feeds the WDT: the main loop does, once per
+   * pass and only after a 48 MHz bring-up (app/main.c), so a failed bring-up still ends in
+   * the watchdog reset instead of an invisible 8 MHz zombie. */
 
     /* Frozen GCLK block: no clock work can succeed, the watchdog may have lost its clock,
    * and an 8 MHz app without USB is unreachable without a power cycle. A core system reset
@@ -1448,16 +1443,14 @@ int Clock_Init(void)
     return ok;
 }
 
-/* ---- SysTick: 1 ms tick, feeds the watchdog once per second ----
- * tickMs is free-running (monotonic ms since boot); the 1 s watchdog feed keeps its own
- * 0..999 counter, so no modulo (the M0+ has no hardware divide, `tickMs % 1000` would pull
- * a libgcc helper into every tick). tickMs wraps after 2^32 ms = 49.7 d; consumers compare
- * modularly or convert to seconds where stored. */
-static uint32_t tickMs;      /* monotonic ms since boot */
+/* ---- SysTick: 1 ms tick ----
+ * tickMs is free-running (monotonic ms since boot). It wraps after 2^32 ms = 49.7 d;
+ * consumers compare modularly or convert to seconds where stored. The tick does not feed
+ * the watchdog: a vector keeps running while the main loop hangs (docs/architecture.md §7). */
+static uint32_t tickMs; /* monotonic ms since boot */
 #ifdef RCP_TX_TIMING
 static int clockCounterUp; /* the radio clock counts the crystal */
 #endif
-static uint32_t tickMsOfSec; /* ms counted towards the 1 s WDT feed */
 
 static void systickInit(uint32_t cpuHz)
 {
@@ -1480,14 +1473,6 @@ void SysTick_Handler(void)
    * re-taken after the credit so finer pumps still measure their own partial deltas. */
     Clock_BringupTick();
     tickMs++;
-
-    if (++tickMsOfSec >= 1000u)
-    {
-        tickMsOfSec = 0;
-
-        if (wdtFeedGate)
-            Wdt_Feed();
-    }
 
     HAL_IrqUnlock();
     HAL_IrqExit();

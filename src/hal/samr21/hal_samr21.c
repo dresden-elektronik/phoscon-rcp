@@ -102,6 +102,9 @@ void HAL_PreMain(void)
 #endif
 
     DBG(DBG_COMP_STARTUP, DBG_STARTUP_RSN_BOOT);
+    /* The reset cause as the bootloader left it: its jump is not a reset, so a watchdog reset of
+     * this image still reads WDT here. Read-only, and latched until the next reset. */
+    Debug_Emit(DBG_COMP_WITNESS, SAMR21_PM->RCAUSE, DBG_WITNESS_RSN_SAMR21_RCAUSE);
     main();
 }
 
