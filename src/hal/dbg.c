@@ -131,22 +131,28 @@ void Debug_ShadowHold(int on)
         dbgShadowLen = 0;
 }
 
-/* Re-queue every held frame; returns the number replayed. The marker goes in
- * first so a reader can tell a replay from a fresh boot. */
+/* Re-queue the held frames, oldest first; returns the number replayed. The marker goes in
+ * first so a reader can tell a replay from a fresh boot. A ring drops its oldest frame on
+ * overflow, so a full shadow plus the marker would push out the marker and the first records -
+ * the reset cause and the start of the bring-up, the ones a late host came for. Only as many
+ * as fit beside the marker are replayed: what a long bring-up gives up is its tail. */
+#define DBG_REPLAY_MAX (DBG_QUEUE_CAPACITY - 1u)
+
 uint16_t Debug_ShadowReplay(void)
 {
     uint16_t at;
     uint16_t n = 0;
+    uint16_t held = (uint16_t)(dbgShadowLen / DBG_FRAME_SIZE);
 
-    if (dbgShadowLen < DBG_FRAME_SIZE)
+    if (held == 0u)
         return 0;
 
-    dbgQueueFrame((uint16_t)DBG_COMP_DBGQ,
-                  (uint16_t)(dbgShadowLen / DBG_FRAME_SIZE),
-                  (uint16_t)DBG_DBGQ_RSN_REPLAY);
+    if (held > DBG_REPLAY_MAX)
+        held = DBG_REPLAY_MAX;
 
-    for (at = 0; (uint16_t)(at + DBG_FRAME_SIZE) <= dbgShadowLen;
-         at = (uint16_t)(at + DBG_FRAME_SIZE))
+    dbgQueueFrame((uint16_t)DBG_COMP_DBGQ, held, (uint16_t)DBG_DBGQ_RSN_REPLAY);
+
+    for (at = 0; n < held; at = (uint16_t)(at + DBG_FRAME_SIZE))
     {
         dbgQueueFrame((uint16_t)(dbgShadow[at + 2u] | (dbgShadow[at + 3u] << 8)),
                       (uint16_t)(dbgShadow[at + 4u] | (dbgShadow[at + 5u] << 8)),

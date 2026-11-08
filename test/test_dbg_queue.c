@@ -291,6 +291,35 @@ int main(void)
     check("the rest of the queue is still drainable after a short drain", drainedFrames >= 5u);
     check("the racing handler record is present", findTag(400, &frame));
 
+    /* 7. A full shadow replays from its first record, marker included: the first records are the
+     * reset cause and the start of the bring-up, the ones a host that connects late came for. */
+    {
+        uint16_t replayed;
+        uint16_t markerAt = 0xFFFFu;
+
+        Debug_ShadowHold(1);
+
+        for (i = 0; i < DBG_QUEUE_SLOTS + 6u; i++)
+            emitTag((uint16_t)(600 + i));
+
+        drainAll();
+        replayed = Debug_ShadowReplay();
+        drainAll();
+
+        for (i = 0; i < drainedFrames; i++)
+        {
+            if (frameField(i, 1) == (uint16_t)DBG_COMP_DBGQ &&
+                frameField(i, 3) == (uint16_t)DBG_DBGQ_RSN_REPLAY)
+                markerAt = i;
+        }
+
+        check("a full shadow's replay keeps its marker", markerAt == 0u);
+        check("the marker counts the records replayed", markerAt == 0u && frameField(0, 2) == replayed);
+        check("a full shadow's replay keeps its first record", findTag(600, &frame) && frame == 1u);
+        check("a replay fits the queue beside its marker", replayed == DBG_QUEUE_SLOTS - 2u);
+        check("a replay drops nothing", drainedFrames == (uint16_t)(replayed + 1u));
+    }
+
     printf("dbg queue: %s (%d failure(s))\n", failures ? "FAIL" : "ALL PASS", failures);
     return failures ? 1 : 0;
 }

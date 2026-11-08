@@ -166,7 +166,7 @@ Every diagnostic is one 8-byte record (Figure 7); there are no debug strings, an
 *Figure 7 — the debug record and its path. Source: `tools/diagrams/debug_record.py`.*
 
 - The stream has no header or checksum; it stays aligned by the fixed size. The `line` field often carries a value — a counter, a register read-back — rather than a line number.
-- A host that attaches late has missed the boot records, so the boot set is replayed once the link is up, behind a marker.
+- A host that attaches late has missed the boot records, so the boot set is replayed once the link is up, behind a marker. A replay carries the first records, as many as fit the queue beside the marker; the reset cause is among them.
 - The post-mortem row makes a crashed app readable without the app running. Only the probe image has it: a rewrite stalls the CPU (`docs/hardware_samr21.md`).
 
 ## 9. Build-time options
