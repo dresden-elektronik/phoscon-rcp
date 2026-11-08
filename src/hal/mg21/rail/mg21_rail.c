@@ -136,6 +136,13 @@ typedef enum
 #define RAIL_FCF_TYPE_ACK 0x02u
 #define RAIL_FCF_FRAME_PENDING 0x10u
 
+/* What the Ack to a frame said, kept in two bits of that frame's first octet in the receive FIFO
+ * (railTagIncoming): bit 7 of the Frame Control field is reserved, and the high bit of the frame type
+ * marks types 4 to 7, which the filter never passes. */
+#define RAIL_TAG_ACKED_FP 0x80u
+#define RAIL_TAG_ACKED_SEC 0x04u
+#define RAIL_FCF_TYPE_DATA 0x01u
+
 /* The core's coprocessor access register: the archive is built for the hardware FPU's calling
  * convention, and a floating-point register is not accessible until CP10 and CP11 are enabled. */
 #define RAIL_SCB_CPACR 0xE000ED88u
@@ -169,7 +176,6 @@ typedef struct
     void (*txDoneHandler)(void *token, int status, int framePending);
 
     volatile uint32_t events;
-    volatile int ackFpPending; /* the data request just seen was answered with Frame Pending */
 
     int edState;
     int8_t edDbm;
@@ -190,8 +196,7 @@ typedef struct
     MacSec_State *macSec; /* set while a host's keys are: the Enhanced Ack is on */
     volatile uint8_t lastLqi; /* of the frame before: a probed Ack has no metrics of its own yet */
     volatile int8_t lastRssi;
-    volatile int ackSecPending;
-    volatile uint8_t ackKeyIndex;
+    volatile uint8_t ackKeyIndex; /* of the last secured Enhanced Ack: what a frame tagged ACKED_SEC reports */
     volatile uint32_t ackFrameCounter;
     Radio_Frame txAckFrame;
     int txAckHave;
@@ -266,6 +271,24 @@ static int railRxRoom(void)
     return (uint8_t)(s_rail.rxHead - s_rail.rxTail) < RADIO_RX_SLOTS;
 }
 
+/* The tags railTagIncoming left in a delivered frame's first octet, taken out of it. Only a frame the
+ * data-request event comes for can carry them: in the filtered mode, a command frame, or a data frame
+ * while the Enhanced Ack is on. Any other frame keeps its octet as it arrived, a reserved bit included.
+ * The filter passes types 0 to 3 alone, so the low two bits are the type whatever a tag did to the third. */
+static uint8_t railTakeTags(uint8_t *fcf)
+{
+    uint8_t type = (uint8_t)(*fcf & 0x03u);
+    uint8_t tags;
+
+    if (s_rail.rxFilter != RADIO_RX_FILTERED ||
+        !(type == RAIL_FCF_TYPE_COMMAND || (type == RAIL_FCF_TYPE_DATA && s_rail.macSec != 0)))
+        return 0u;
+
+    tags = (uint8_t)(*fcf & (RAIL_TAG_ACKED_FP | RAIL_TAG_ACKED_SEC));
+    *fcf = (uint8_t)(*fcf & ~tags);
+    return tags;
+}
+
 /* Called from railEvents, once per RAIL_EVENT_RX_PACKET_RECEIVED: one packet is the callback's. The
  * PHY length octet leads the data; with RAIL_RX_OPTION_STORE_CRC the FCS follows the payload, so the
  * record is exactly the contract's PSDU. */
@@ -277,6 +300,7 @@ static void railRxPacket(RAIL_Handle_t handle)
     RAIL_RxPacketHandle_t ph;
     Radio_Frame *dst;
     uint8_t phr;
+    uint8_t tags;
     uint8_t i;
 
     ph = RAIL_GetRxPacketInfo(handle, RAIL_RX_PACKET_HANDLE_OLDEST_COMPLETE, &info);
@@ -323,6 +347,8 @@ static void railRxPacket(RAIL_Handle_t handle)
         return;
     }
 
+    tags = railTakeTags(&buf[1]);
+
     if (!railRxRoom())
     {
         s_rail.counters.rxDropped++;
@@ -351,13 +377,35 @@ static void railRxPacket(RAIL_Handle_t handle)
         dst->timestamp = RAIL_GetTime();
 
     dst->crcOk = det.crcPassed ? 1 : 0;
-    dst->ackedFp = s_rail.ackFpPending;
-    s_rail.ackFpPending = 0;
-    dst->ackedSec = s_rail.ackSecPending;
+    dst->ackedFp = (tags & RAIL_TAG_ACKED_FP) ? 1 : 0;
+    dst->ackedSec = (tags & RAIL_TAG_ACKED_SEC) ? 1 : 0;
     dst->ackKeyIndex = s_rail.ackKeyIndex;
     dst->ackFrameCounter = s_rail.ackFrameCounter;
-    s_rail.ackSecPending = 0;
     s_rail.rxHead = (uint8_t)(s_rail.rxHead + 1u);
+}
+
+/* Marks the frame still arriving with what its Ack says. The data-request event comes before the frame
+ * has ended, and the frame may yet fail its FCS, be aborted, overflow the FIFO or find the ring full: an
+ * answer held beside it would then reach the next frame delivered, a false Frame Pending on another
+ * child's poll. Written into the frame itself, the answer goes wherever the frame goes; railRxPacket
+ * takes the bits back out. The event comes after the source address, so the first octet is there. */
+static void railTagIncoming(RAIL_Handle_t handle, uint8_t tags)
+{
+    RAIL_RxPacketInfo_t info;
+
+    if (tags == 0u)
+        return;
+
+    RAIL_GetRxIncomingPacketInfo(handle, &info);
+
+    if (info.packetBytes < 2u) /* the PHY length octet, then the first octet of the Frame Control field */
+        return;
+
+    if (info.firstPortionBytes >= 2u)
+        info.firstPortionData[1] = (uint8_t)(info.firstPortionData[1] | tags);
+    else
+        info.lastPortionData[1u - info.firstPortionBytes] =
+            (uint8_t)(info.lastPortionData[1u - info.firstPortionBytes] | tags);
 }
 
 /* An Enhanced Ack, from what has arrived of a version 2 frame. RAIL raises this event for an
@@ -424,10 +472,13 @@ static int railEnhancedAck(RAIL_Handle_t handle)
         return 1;
     }
 
-    s_rail.ackFpPending = fp;
-    s_rail.ackSecPending = result.secured;
-    s_rail.ackKeyIndex = result.keyIndex;
-    s_rail.ackFrameCounter = result.frameCounter;
+    if (result.secured)
+    {
+        s_rail.ackKeyIndex = result.keyIndex;
+        s_rail.ackFrameCounter = result.frameCounter;
+    }
+
+    railTagIncoming(handle, (uint8_t)((fp ? RAIL_TAG_ACKED_FP : 0u) | (result.secured ? RAIL_TAG_ACKED_SEC : 0u)));
 
     if (fp)
         s_rail.counters.ackFp++;
@@ -488,7 +539,7 @@ static void railDataRequest(RAIL_Handle_t handle)
 
     if (RAIL_IEEE802154_SetFramePending(handle) == RAIL_STATUS_NO_ERROR)
     {
-        s_rail.ackFpPending = 1;
+        railTagIncoming(handle, RAIL_TAG_ACKED_FP);
         s_rail.counters.ackFp++;
     }
     else
