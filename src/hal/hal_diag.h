@@ -21,7 +21,7 @@ void Clock_Stamp(uint16_t milestone);
 void Clock_CalibStamp(void);
 
 /* Feed the watchdog once every 64 polls: a WDT.CLEAR costs ~21 000 CPU cycles.
- * Call it with the loop's own round counter. */
+ * Call it with the loop's own round counter. Only until Wdt_LoopStart (hal/hal.h). */
 void Wdt_FeedPoll(uint32_t round);
 
 /* Publish TRX_STATUS and XAH_CTRL_1.AACK_PROM_MODE (component DBG_COMP_RF);

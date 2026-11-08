@@ -29,7 +29,7 @@ int Wdt_IsArmed(void);
  * LFRCO never reported ready. */
 uint32_t Wdt_PeriodSel(void);
 
-/* Bounded-wait feeding. */
+/* Bounded-wait feeding, only until Wdt_LoopStart (hal/hal.h). */
 void Wdt_FeedPoll(uint32_t round);
 
 #endif /* MG21_WDT_H */

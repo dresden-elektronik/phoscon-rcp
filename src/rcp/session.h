@@ -27,9 +27,10 @@
 #define RCP_TX_DONE_MAX (4u + 5u + 2u + 28u + RCP_TX_ACK_MAX + 5u)
 
 /* How long a transmission may stay in flight, beyond the delay it asked for, before the session calls
- * itself unhealthy. Every back-end reports an outcome within its own deadline, retries and backoffs
- * included, which is tens of milliseconds; a transmission still open after this lost its completion,
- * and every later STREAM_RAW would be answered BUSY. */
+ * itself unhealthy. Every back-end clamps the retries to 15 and bounds each attempt by its own
+ * deadline (50 ms per attempt on the AT86RF233 boards, one CSMA-CA round under RAIL), so the slowest
+ * outcome a congested channel can produce is under a second; a transmission still open after this
+ * lost its completion, and every later STREAM_RAW would be answered BUSY. */
 #define RCP_TX_STUCK_MS 2000u
 
 typedef int (*Rcp_TxSink)(void *ctx, const PropsStream_TxRequest *req, uint8_t tid);

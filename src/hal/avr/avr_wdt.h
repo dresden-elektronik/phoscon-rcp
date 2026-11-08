@@ -21,7 +21,7 @@
  * which the DBG_WDT_RSN_AVR_REFUSED record says. */
 int Wdt_Init(void);
 
-/* Bounded-wait feeding. */
+/* Bounded-wait feeding, only until Wdt_LoopStart (hal/hal.h). */
 void Wdt_FeedPoll(uint32_t round);
 
 /* The shortest period, about 16 ms, and no feeding from here on: the reset path. Never returns. */

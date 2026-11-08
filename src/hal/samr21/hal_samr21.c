@@ -102,15 +102,18 @@ void HAL_PreMain(void)
 #endif
 
     DBG(DBG_COMP_STARTUP, DBG_STARTUP_RSN_BOOT);
-    /* The reset cause as the bootloader left it: its jump is not a reset, so a watchdog reset of
-     * this image still reads WDT here. Read-only, and latched until the next reset. */
-    Debug_Emit(DBG_COMP_WITNESS, SAMR21_PM->RCAUSE, DBG_WITNESS_RSN_SAMR21_RCAUSE);
     main();
 }
 
 int HAL_Init(void)
 {
     int ok;
+
+    /* The reset cause as the bootloader left it (docs/hardware_samr21.md §4). Here rather than in
+     * HAL_PreMain: main's Debug_ShadowHold empties the shadow first, and only a record after it is
+     * replayed to a host that connects late. RCAUSE is latched until the next reset, so nothing
+     * between the two has changed it. */
+    Debug_Emit(DBG_COMP_WITNESS, SAMR21_PM->RCAUSE, DBG_WITNESS_RSN_SAMR21_RCAUSE);
 
     /* Start the stopwatch from here so every DBG_COMP_TIME milestone shares one zero
    * (hal/samr21/samr21_clock.c). */
