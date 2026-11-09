@@ -176,6 +176,7 @@ typedef struct
     void (*txDoneHandler)(void *token, int status, int framePending);
 
     volatile uint32_t events;
+    int calPending; /* RAIL asked for a calibration that has not run yet: main loop only */
 
     int edState;
     int8_t edDbm;
@@ -1317,12 +1318,18 @@ void Radio_Poll(void)
             (void)RAIL_StartRx(s_rail.handle, s_rail.channel, NULL);
     }
 
+    /* RAIL asks once and keeps the calibration pending until it runs, so a request that arrives during
+     * a transmission waits here for the radio to be free rather than going with the event word. */
+    if (ev & EV_CAL_NEEDED)
+        s_rail.calPending = 1;
+
     if (s_rail.txPhase != RAIL_TX_IDLE)
     {
         railPollTx(ev);
     }
-    else if (ev & EV_CAL_NEEDED)
+    else if (s_rail.calPending)
     {
+        s_rail.calPending = 0;
         (void)RAIL_Calibrate(s_rail.handle, NULL, RAIL_CAL_ALL_PENDING);
     }
 
