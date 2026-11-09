@@ -233,8 +233,6 @@ void Props_SetScanState(Props_State *s, uint8_t state)
 
 uint32_t Props_Get(const Props_State *s, uint32_t id, U_BStream *dst)
 {
-    uint8_t packed[5];
-    uint16_t n;
     const char *str;
     uint8_t i;
 
@@ -268,10 +266,8 @@ uint32_t Props_Get(const Props_State *s, uint32_t id, U_BStream *dst)
 
         case PROPS_ID_PROTOCOL_VERSION:
             /* 'ii': two packed uints, exactly the captured `04 03` (docs/protocol.md §8). */
-            n = Spinel_PackedWrite(packed, sizeof(packed), PROPS_PROTOCOL_MAJOR);
-            U_bstream_put_bytes(dst, packed, n);
-            n = Spinel_PackedWrite(packed, sizeof(packed), PROPS_PROTOCOL_MINOR);
-            U_bstream_put_bytes(dst, packed, n);
+            U_bstream_put_leb128_u32(dst, PROPS_PROTOCOL_MAJOR);
+            U_bstream_put_leb128_u32(dst, PROPS_PROTOCOL_MINOR);
             break;
 
         case PROPS_ID_NCP_VERSION:
@@ -301,15 +297,11 @@ uint32_t Props_Get(const Props_State *s, uint32_t id, U_BStream *dst)
              * element and later tests membership (spinel_driver.cpp:416-426,
              * spinel_driver.hpp:206), so a bitmask would advertise nothing. */
             for (i = 0; i < (uint8_t)(sizeof(propsCaps) / sizeof(propsCaps[0])); ++i)
-            {
-                n = Spinel_PackedWrite(packed, sizeof(packed), propsCaps[i]);
-                U_bstream_put_bytes(dst, packed, n);
-            }
+                U_bstream_put_leb128_u32(dst, propsCaps[i]);
             break;
 
         case PROPS_ID_RADIO_CAPS:
-            n = Spinel_PackedWrite(packed, sizeof(packed), PROPS_RADIO_CAPS_VALUE);
-            U_bstream_put_bytes(dst, packed, n);
+            U_bstream_put_leb128_u32(dst, PROPS_RADIO_CAPS_VALUE);
             break;
 
         case PROPS_ID_LAST_STATUS:
@@ -331,25 +323,23 @@ uint32_t Props_Get(const Props_State *s, uint32_t id, U_BStream *dst)
             U_bstream_put_u8(dst, s->channel);
             break;
         case PROPS_ID_PHY_CCA_THRESHOLD:
-            U_bstream_put_u8(dst, (uint8_t)s->ccaThresholdDbm);
+            U_bstream_put_s8(dst, s->ccaThresholdDbm);
             break;
         case PROPS_ID_PHY_TX_POWER:
-            U_bstream_put_u8(dst, (uint8_t)Props_TxPowerDbm(s, s->channel));
+            U_bstream_put_s8(dst, Props_TxPowerDbm(s, s->channel));
             break;
         case PROPS_ID_PHY_RSSI:
-            U_bstream_put_u8(dst, (uint8_t)s->rssiDbm);
+            U_bstream_put_s8(dst, s->rssiDbm);
             break;
         case PROPS_ID_PHY_RX_SENSITIVITY:
-            U_bstream_put_u8(dst, (uint8_t)s->rxSensitivityDbm);
+            U_bstream_put_s8(dst, s->rxSensitivityDbm);
             break;
 
         case PROPS_ID_MAC_PANID:
-            U_bstream_put_u8(dst, (uint8_t)(s->panId & 0xFFu));
-            U_bstream_put_u8(dst, (uint8_t)(s->panId >> 8));
+            U_bstream_put_u16_le(dst, s->panId);
             break;
         case PROPS_ID_MAC_SADDR:
-            U_bstream_put_u8(dst, (uint8_t)(s->shortAddr & 0xFFu));
-            U_bstream_put_u8(dst, (uint8_t)(s->shortAddr >> 8));
+            U_bstream_put_u16_le(dst, s->shortAddr);
             break;
         case PROPS_ID_HWADDR:
             /* All or nothing: a part with no programmed user row has no factory address. */
@@ -442,8 +432,7 @@ uint32_t Props_Get(const Props_State *s, uint32_t id, U_BStream *dst)
 #endif
 
         case PROPS_ID_MAC_SCAN_PERIOD:
-            U_bstream_put_u8(dst, (uint8_t)(s->scanPeriodMs & 0xFFu));
-            U_bstream_put_u8(dst, (uint8_t)(s->scanPeriodMs >> 8));
+            U_bstream_put_u16_le(dst, s->scanPeriodMs);
             break;
 
         default:

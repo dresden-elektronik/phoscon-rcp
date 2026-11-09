@@ -3,6 +3,8 @@
 /* mac_sec.c — see mac_sec.h. */
 #include "mac_sec.h"
 
+#include "u_bstream.h"
+
 #define MAC_SEC_FCS_LEN 2u
 #define MAC_SEC_NONCE_LEN 13u
 
@@ -54,22 +56,42 @@ static void macSecUnlock(void)
         macSecUnlockFn();
 }
 
+/* Fields inside a frame the caller holds whole, at an offset it has already checked: a stream over
+ * just that field. */
 static uint16_t macSecReadU16(const uint8_t *p)
 {
-    return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+    U_BStream bs;
+
+    U_bstream_init(&bs, (void *)p, 2u);
+    return (uint16_t)U_bstream_get_u16_le(&bs);
 }
 
 static uint32_t macSecReadU32(const uint8_t *p)
 {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+    U_BStream bs;
+
+    U_bstream_init(&bs, (void *)p, 4u);
+    return (uint32_t)U_bstream_get_u32_le(&bs);
 }
 
 static void macSecWriteU32(uint8_t *p, uint32_t v)
 {
-    p[0] = (uint8_t)(v & 0xFFu);
-    p[1] = (uint8_t)((v >> 8) & 0xFFu);
-    p[2] = (uint8_t)((v >> 16) & 0xFFu);
-    p[3] = (uint8_t)((v >> 24) & 0xFFu);
+    U_BStream bs;
+
+    U_bstream_init(&bs, p, 4u);
+    U_bstream_put_u32_le(&bs, v);
+}
+
+/* The CCM* nonce: the source's extended address most significant octet first, the frame counter big
+ * endian, the security level (IEEE 802.15.4-2015 9.3.2.2). */
+static void macSecNonce(uint8_t *nonce, const uint8_t *ext8, uint32_t counter, uint8_t level)
+{
+    U_BStream bs;
+
+    U_bstream_init(&bs, nonce, MAC_SEC_NONCE_LEN);
+    U_bstream_put_bytes(&bs, ext8, MAC_SEC_EXT_LEN);
+    U_bstream_put_u32_be(&bs, counter);
+    U_bstream_put_u8(&bs, level);
 }
 
 void MacSec_Init(MacSec_State *s)
@@ -642,14 +664,7 @@ uint8_t MacSec_BuildEnhAckHeader(MacSec_State *s,
         for (k = 0u; k < ieLen; ++k)
             ack[n++] = ie[k];
 
-        for (k = 0u; k < MAC_SEC_EXT_LEN; ++k)
-            mic->nonce[k] = ext8[k];
-
-        mic->nonce[8] = (uint8_t)(counter >> 24);
-        mic->nonce[9] = (uint8_t)((counter >> 16) & 0xFFu);
-        mic->nonce[10] = (uint8_t)((counter >> 8) & 0xFFu);
-        mic->nonce[11] = (uint8_t)(counter & 0xFFu);
-        mic->nonce[12] = MAC_SEC_LEVEL_ENC_MIC_32;
+        macSecNonce(mic->nonce, ext8, counter, MAC_SEC_LEVEL_ENC_MIC_32);
 
         mic->key = key;
         mic->adataLen = n;
@@ -727,7 +742,6 @@ int MacSec_SecureTx(MacSec_State *s,
     uint8_t nonce[MAC_SEC_NONCE_LEN];
     uint8_t *counterAt;
     uint8_t *keyIndexAt;
-    uint8_t k;
 
     if (s == 0 || psdu == 0 || ext8 == 0 || result == 0 || len < 1u)
         return 0;
@@ -782,16 +796,7 @@ int MacSec_SecureTx(MacSec_State *s,
     result->keyIndex = *keyIndexAt;
     result->frameCounter = macSecReadU32(counterAt);
 
-    /* The nonce: the source's extended address most significant octet first, the frame counter big
-     * endian, the security level (IEEE 802.15.4-2015 9.3.2.2). */
-    for (k = 0u; k < MAC_SEC_EXT_LEN; ++k)
-        nonce[k] = ext8[k];
-
-    nonce[8] = (uint8_t)(result->frameCounter >> 24);
-    nonce[9] = (uint8_t)((result->frameCounter >> 16) & 0xFFu);
-    nonce[10] = (uint8_t)((result->frameCounter >> 8) & 0xFFu);
-    nonce[11] = (uint8_t)(result->frameCounter & 0xFFu);
-    nonce[12] = layout.level;
+    macSecNonce(nonce, ext8, result->frameCounter, layout.level);
 
     return Aes_CcmEncrypt(macSecSelectKey(s, *keyIndexAt),
                           nonce,

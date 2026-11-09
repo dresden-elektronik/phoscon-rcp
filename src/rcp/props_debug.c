@@ -3,34 +3,27 @@
 /* props_debug.c - packing of debug records for the RCP log property (props_debug.h). */
 #include "props_debug.h"
 
+#include "u_bstream.h"
+
 uint16_t PropsDebug_Pack(uint8_t *dst, uint16_t cap, const uint8_t *records, uint16_t count)
 {
-    uint16_t payload;
-    uint16_t need;
-    uint16_t i;
+    U_BStream bs;
 
     if (dst == 0 || records == 0 || count == 0u || count > PROPS_DEBUG_MAX)
     {
         return 0u;
     }
 
-    payload = (uint16_t)(count * PROPS_DEBUG_RECORD);
-    need = (uint16_t)(PROPS_DEBUG_HEADER + payload);
+    U_bstream_init(&bs, dst, cap);
 
-    if (cap < need)
+    if (!U_bstream_fits(&bs, PROPS_DEBUG_HEADER + (unsigned long)count * PROPS_DEBUG_RECORD))
     {
         return 0u;
     }
 
-    dst[0] = (uint8_t)(count & 0xFFu);
-    dst[1] = (uint8_t)(count >> 8);
-
-    for (i = 0u; i < payload; ++i)
-    {
-        dst[PROPS_DEBUG_HEADER + i] = records[i];
-    }
-
-    return need;
+    U_bstream_put_u16_le(&bs, count);
+    U_bstream_put_bytes(&bs, records, (unsigned long)count * PROPS_DEBUG_RECORD);
+    return (uint16_t)U_bstream_pos(&bs);
 }
 
 int PropsDebug_EnableValue(const uint8_t *value, uint16_t len, uint8_t *on)

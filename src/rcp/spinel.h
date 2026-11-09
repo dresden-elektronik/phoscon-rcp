@@ -93,10 +93,8 @@ uint16_t Spinel_BuildLastStatus(U_BStream *dst, uint32_t status);
 uint16_t
 Spinel_BuildValueIs(U_BStream *dst, uint32_t prop, const uint8_t *value, uint16_t valueLen);
 
-/* ---- packed uint (docs/protocol.md §4, type "i"), 7 bits per byte, MSB = more ---------- */
-int Spinel_PackedRead(const uint8_t *data, uint16_t len, uint32_t *value, uint16_t *used);
-uint16_t Spinel_PackedSize(uint32_t value);
-uint16_t Spinel_PackedWrite(uint8_t *dst, uint16_t max, uint32_t value);
+/* A packed uint (docs/protocol.md §4, type "i") is unsigned LEB128: U_bstream_put_leb128_u32 and
+ * U_bstream_get_leb128_u32 read and write it. */
 
 uint8_t Spinel_Header(uint8_t tid);
 int Spinel_HeaderTid(uint8_t header);

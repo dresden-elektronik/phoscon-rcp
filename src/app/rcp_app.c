@@ -1021,7 +1021,7 @@ void RcpApp_Poll(void)
             rcpSession.props.radioTimeUs = Radio_ClockUs();
 #endif
             if (Rcp_Feed(&rcpSession, rcpHdlc.buf, rcpHdlc.len, &out) > 0u)
-                rcpAppQueueReply(reply, (uint16_t)(sizeof(reply) - U_bstream_remaining(&out)));
+                rcpAppQueueReply(reply, (uint16_t)U_bstream_pos(&out));
 #ifdef RCP_UART_BITRATE
             rcpAppLinkNote();
 #endif

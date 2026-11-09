@@ -211,13 +211,12 @@ uint16_t SrcMatch_EncodeShort(const SrcMatch_Table *t, U_BStream *dst)
     if (t == 0 || dst == 0)
         return 0u;
 
-    if ((uint32_t)t->shortCount * 2u > (uint32_t)U_bstream_remaining(dst))
+    if (!U_bstream_fits(dst, (unsigned long)t->shortCount * 2u))
         return 0u;
 
     for (i = 0; i < t->shortCount; ++i)
     {
-        U_bstream_put_u8(dst, (uint8_t)(t->shortAddr[i] & 0xFFu));
-        U_bstream_put_u8(dst, (uint8_t)(t->shortAddr[i] >> 8));
+        U_bstream_put_u16_le(dst, t->shortAddr[i]);
         n = (uint16_t)(n + 2u);
     }
 
@@ -232,7 +231,7 @@ uint16_t SrcMatch_EncodeExt(const SrcMatch_Table *t, U_BStream *dst)
     if (t == 0 || dst == 0)
         return 0u;
 
-    if ((uint32_t)t->extCount * SRCMATCH_EXT_LEN > (uint32_t)U_bstream_remaining(dst))
+    if (!U_bstream_fits(dst, (unsigned long)t->extCount * SRCMATCH_EXT_LEN))
         return 0u;
 
     for (i = 0; i < t->extCount; ++i)

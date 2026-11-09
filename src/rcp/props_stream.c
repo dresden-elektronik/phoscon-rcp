@@ -3,20 +3,6 @@
 /* props_stream.c — the STREAM_RAW RX notification (src/rcp/props_stream.h). */
 #include "props_stream.h"
 
-static void putU16(U_BStream *bs, uint16_t v)
-{
-    U_bstream_put_u8(bs, (uint8_t)(v & 0xFFu));
-    U_bstream_put_u8(bs, (uint8_t)(v >> 8));
-}
-
-static void putU32(U_BStream *bs, uint32_t v)
-{
-    U_bstream_put_u8(bs, (uint8_t)(v & 0xFFu));
-    U_bstream_put_u8(bs, (uint8_t)((v >> 8) & 0xFFu));
-    U_bstream_put_u8(bs, (uint8_t)((v >> 16) & 0xFFu));
-    U_bstream_put_u8(bs, (uint8_t)((v >> 24) & 0xFFu));
-}
-
 int PropsStream_ParseRawTx(const uint8_t *value, uint16_t len, PropsStream_TxRequest *out)
 {
     uint16_t psduLen;
@@ -92,27 +78,26 @@ static uint16_t propsStreamBuild(U_BStream *dst, const Radio_Frame *frame, uint1
     if (!frame->crcOk)
         flags |= PROPS_STREAM_MD_BAD_FCS;
 
-    putU16(dst, (uint16_t)frame->len); /* frameDataLen */
+    U_bstream_put_u16_le(dst, (uint16_t)frame->len); /* frameDataLen */
 
     if (frame->len > 0u)
         U_bstream_put_bytes(dst, frame->psdu, frame->len);
 
-    U_bstream_put_u8(dst, (uint8_t)frame->rssi);                  /* MD_POWER, dBm */
-    U_bstream_put_u8(dst, (uint8_t)PROPS_STREAM_MD_NOISE_UNUSED); /* MD_NOISE */
-    putU16(dst, flags);                                           /* MD_FLAG */
+    U_bstream_put_s8(dst, frame->rssi);                  /* MD_POWER, dBm */
+    U_bstream_put_s8(dst, PROPS_STREAM_MD_NOISE_UNUSED); /* MD_NOISE */
+    U_bstream_put_u16_le(dst, flags);                    /* MD_FLAG */
 
-    putU16(dst, PROPS_STREAM_MD_PHY_LEN); /* MD_PHY */
+    U_bstream_put_u16_le(dst, PROPS_STREAM_MD_PHY_LEN); /* MD_PHY */
     U_bstream_put_u8(dst, frame->channel);
     U_bstream_put_u8(dst, frame->lqi);
-    putU32(dst, (uint32_t)(frame->timestamp & 0xFFFFFFFFuLL)); /* µs, little endian */
-    putU32(dst, (uint32_t)(frame->timestamp >> 32));
+    U_bstream_put_u64_le(dst, frame->timestamp); /* µs */
 
-    putU16(dst, 1u);           /* MD_VEND len: packed 0 = 1 byte */
+    U_bstream_put_u16_le(dst, 1u); /* MD_VEND len: packed 0 = 1 byte */
     U_bstream_put_u8(dst, 0u); /* RX error code: 0 = OK */
 
-    putU16(dst, PROPS_STREAM_MD_MAC_LEN); /* MD_MAC */
+    U_bstream_put_u16_le(dst, PROPS_STREAM_MD_MAC_LEN); /* MD_MAC */
     U_bstream_put_u8(dst, frame->ackKeyIndex);
-    putU32(dst, frame->ackFrameCounter);
+    U_bstream_put_u32_le(dst, frame->ackFrameCounter);
 
     /* 2 + PSDU + 4 + (2 + MD_PHY) + (2 + 1) + (2 + MD_MAC) = len + 28. */
     return (uint16_t)(2u + frame->len + 4u + (2u + PROPS_STREAM_MD_PHY_LEN) + (2u + 1u) +

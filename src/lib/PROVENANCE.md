@@ -4,7 +4,7 @@
 
 | directory | library | origin |
 |---|---|---|
-| `u_bstream/` | U_BStream — a binary reader/writer over a caller-owned buffer | `git.sr.ht/~cryo/u_bstream` |
+| `u_bstream/` | U_BStream — a binary reader/writer over a caller-owned buffer | `git.sr.ht/~cryo/u_bstream`, tag `v1.3.0` (`e4ed3be`); `u_bstream.c`, `u_bstream.h` and `LICENSE.txt` as tagged |
 | `u_sstream/` | U_SStream — a bounded string builder with the same contract | `git.sr.ht/~cryo/u_sstream` |
 | `aes/` | AES-128 and CCM\* (FIPS-197, IEEE 802.15.4), linked only by a board with Thread support | `phoscon_zbstack`, `src/crypto/`, with `aes_table.c` as the block cipher on a board without an engine; its licence is `aes/LICENSE` and its test suite is `test/unit/test_aes.c`. `aes/zb_status.h` is this tree's, a stand-in for the larger header there |
 
@@ -13,7 +13,7 @@ All three are by this firmware's author, which is why they read like the rest of
 Two rules come with them:
 
 - **They are never restyled or reformatted** (`docs/coding-rules.md` §6). Keeping the upstream text intact keeps a future update a diff instead of a rewrite.
-- **The upstream revision is not pinned for the first two.** When a library is updated, record the commit it came from here, so the next update starts from a known point.
+- **Each library records the upstream revision it came from**, so the next update starts from a known point. U_SStream predates the rule and has none yet; its next update records one.
 
 ## Fetched at build time: the RAIL library
 

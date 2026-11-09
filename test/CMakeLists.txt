@@ -243,6 +243,7 @@ add_test(NAME scan COMMAND test_scan)
 add_executable(test_props_debug
   unit/test_props_debug.c
   ${CMAKE_SOURCE_DIR}/src/rcp/props_debug.c
+  ${CMAKE_SOURCE_DIR}/src/lib/u_bstream/u_bstream.c
 )
 target_include_directories(test_props_debug PRIVATE
   ${CMAKE_SOURCE_DIR}/src/rcp

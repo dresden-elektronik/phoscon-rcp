@@ -21,7 +21,18 @@ static uint16_t getValue(Props_State *s, uint32_t id)
 
     U_bstream_init(&bs, buf, sizeof(buf));
     TU_EQ(Props_Get(s, id, &bs), SPINEL_STATUS_OK);
-    return (uint16_t)(BUF - U_bstream_remaining(&bs));
+    return (uint16_t)U_bstream_pos(&bs);
+}
+
+/* One packed uint at data, the library's LEB128 (spinel.h): 1 and its length in *used, or 0. */
+static int packedRead(const uint8_t *data, uint16_t len, uint32_t *v, uint16_t *used)
+{
+    U_BStream bs;
+
+    U_bstream_init(&bs, (void *)data, len);
+    *v = (uint32_t)U_bstream_get_leb128_u32(&bs);
+    *used = (uint16_t)U_bstream_pos(&bs);
+    return bs.status == U_BSTREAM_OK;
 }
 
 /* CAPS is a list of packed uints, one capability number each, and OpenThread pushes every
@@ -36,7 +47,7 @@ static int capsContains(const uint8_t *data, uint16_t len, uint32_t cap)
         uint32_t v = 0u;
         uint16_t used = 0u;
 
-        if (!Spinel_PackedRead(&data[pos], (uint16_t)(len - pos), &v, &used))
+        if (!packedRead(&data[pos], (uint16_t)(len - pos), &v, &used))
             return 0;
 
         if (v == cap)
@@ -220,7 +231,7 @@ TU_TEST(init_leaves_nothing_of_what_was_there_before)
         TU_EQ(Props_Get(&dirty, t[i].id, &sa), Props_Get(&clean, t[i].id, &sb));
         TU_EQ(U_bstream_remaining(&sa), U_bstream_remaining(&sb));
 
-        for (k = 0u; k < (uint16_t)(sizeof(a) - U_bstream_remaining(&sa)); ++k)
+        for (k = 0u; k < (uint16_t)U_bstream_pos(&sa); ++k)
         {
             if (a[k] != b[k])
             {
@@ -305,7 +316,7 @@ TU_TEST(caps_lists_exactly_the_true_capabilities)
         uint32_t v = 0u;
         uint16_t used = 0u;
 
-        TU_CHECK(Spinel_PackedRead(&buf[pos], (uint16_t)(len - pos), &v, &used));
+        TU_CHECK(packedRead(&buf[pos], (uint16_t)(len - pos), &v, &used));
         TU_CHECK(used >= 1u);
         pos = (uint16_t)(pos + used);
         count++;
@@ -352,8 +363,8 @@ TU_TEST(radio_caps_advertises_the_supported_radio_features)
     initIdentity(&id);
     Props_Init(&s, &id);
     len = getValue(&s, PROPS_ID_RADIO_CAPS);
-    TU_EQ(len, Spinel_PackedSize(PROPS_RADIO_CAPS_VALUE));
-    TU_CHECK(Spinel_PackedRead(buf, len, &v, &used));
+    TU_EQ(len, U_bstream_leb128_u32_size(PROPS_RADIO_CAPS_VALUE));
+    TU_CHECK(packedRead(buf, len, &v, &used));
     TU_EQ(used, len);
     TU_EQ(v, PROPS_RADIO_CAPS_VALUE);
     /* The three OpenThread's CheckRadioCapabilities demands, plus RX-on-when-idle. */

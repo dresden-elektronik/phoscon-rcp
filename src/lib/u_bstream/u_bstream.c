@@ -32,6 +32,25 @@ unsigned long U_bstream_remaining(U_BStream *bs)
     return 0;
 }
 
+unsigned long U_bstream_pos(U_BStream *bs)
+{
+    if (!bs->data)
+    {
+        bs->status = U_BSTREAM_NOT_INITIALISED;
+        return 0;
+    }
+
+    /* The current position, which is the number of bytes committed to the buffer.
+     * A stream that failed part way still reports what was written here, where
+     * the size minus U_bstream_remaining of it would not. */
+    return bs->pos;
+}
+
+int U_bstream_fits(U_BStream *bs, unsigned long n)
+{
+    return n <= U_bstream_remaining(bs);
+}
+
 void U_bstream_advance(U_BStream *bs, unsigned long n)
 {
     if (!bs->data)
@@ -122,6 +141,11 @@ void U_bstream_put_u8(U_BStream *bs, unsigned char v)
     }
 }
 
+void U_bstream_put_s8(U_BStream *bs, signed char v)
+{
+    U_bstream_put_u8(bs, (unsigned char)v);
+}
+
 void U_bstream_put_bytes(U_BStream *bs, const void *src, unsigned long n)
 {
     const unsigned char *s;
@@ -140,8 +164,8 @@ void U_bstream_put_u16_le(U_BStream *bs, unsigned short v)
 {
     if (U_bstream_verify_write(bs, 2))
     {
-        bs->data[bs->pos++] = (v >> 0) & 0xFF;
-        bs->data[bs->pos++] = (v >> 8) & 0xFF;
+        bs->data[bs->pos++] = (unsigned char)((v >> 0) & 0xFF);
+        bs->data[bs->pos++] = (unsigned char)((v >> 8) & 0xFF);
     }
 }
 
@@ -150,20 +174,91 @@ void U_bstream_put_s16_le(U_BStream *bs, signed short v)
     U_bstream_put_u16_le(bs, (unsigned short)v);
 }
 
+void U_bstream_put_u16_be(U_BStream *bs, unsigned short v)
+{
+    if (U_bstream_verify_write(bs, 2))
+    {
+        bs->data[bs->pos++] = (unsigned char)((v >> 8) & 0xFF);
+        bs->data[bs->pos++] = (unsigned char)((v >> 0) & 0xFF);
+    }
+}
+
+void U_bstream_put_s16_be(U_BStream *bs, signed short v)
+{
+    U_bstream_put_u16_be(bs, (unsigned short)v);
+}
+
 void U_bstream_put_u32_le(U_BStream *bs, unsigned long v)
 {
     if (U_bstream_verify_write(bs, 4))
     {
-        bs->data[bs->pos++] = (v >> 0) & 0xFF;
-        bs->data[bs->pos++] = (v >> 8) & 0xFF;
-        bs->data[bs->pos++] = (v >> 16) & 0xFF;
-        bs->data[bs->pos++] = (v >> 24) & 0xFF;
+        bs->data[bs->pos++] = (unsigned char)((v >> 0) & 0xFF);
+        bs->data[bs->pos++] = (unsigned char)((v >> 8) & 0xFF);
+        bs->data[bs->pos++] = (unsigned char)((v >> 16) & 0xFF);
+        bs->data[bs->pos++] = (unsigned char)((v >> 24) & 0xFF);
     }
 }
 
 void U_bstream_put_s32_le(U_BStream *bs, signed long v)
 {
     U_bstream_put_u32_le(bs, (unsigned long)v);
+}
+
+void U_bstream_put_u32_be(U_BStream *bs, unsigned long v)
+{
+    if (U_bstream_verify_write(bs, 4))
+    {
+        bs->data[bs->pos++] = (unsigned char)((v >> 24) & 0xFF);
+        bs->data[bs->pos++] = (unsigned char)((v >> 16) & 0xFF);
+        bs->data[bs->pos++] = (unsigned char)((v >> 8) & 0xFF);
+        bs->data[bs->pos++] = (unsigned char)((v >> 0) & 0xFF);
+    }
+}
+
+void U_bstream_put_s32_be(U_BStream *bs, signed long v)
+{
+    U_bstream_put_u32_be(bs, (unsigned long)v);
+}
+
+/* Unsigned LEB128, the varint a Spinel packed uint is: 7 value bits per byte,
+ * least significant group first, the MSB of a byte meaning "more bytes follow".
+ * A 32-bit value needs at most 5 bytes. Only the low 32 bits of v are encoded,
+ * as put_u32_le writes them. */
+unsigned long U_bstream_leb128_u32_size(unsigned long v)
+{
+    unsigned long n;
+
+    v &= 0xFFFFFFFFUL;
+    n = 1;
+
+    while (v >= 0x80UL)
+    {
+        v >>= 7;
+        n++;
+    }
+
+    return n;
+}
+
+void U_bstream_put_leb128_u32(U_BStream *bs, unsigned long v)
+{
+    unsigned long n;
+
+    v &= 0xFFFFFFFFUL;
+    n = U_bstream_leb128_u32_size(v);
+
+    /* The length is known up front, so the whole value is written or none of it. */
+    if (U_bstream_verify_write(bs, n))
+    {
+        while (n > 1)
+        {
+            bs->data[bs->pos++] = (unsigned char)((v & 0x7FUL) | 0x80UL);
+            v >>= 7;
+            n--;
+        }
+
+        bs->data[bs->pos++] = (unsigned char)(v & 0x7FUL);
+    }
 }
 
 unsigned char U_bstream_get_u8(U_BStream *bs)
@@ -178,6 +273,11 @@ unsigned char U_bstream_get_u8(U_BStream *bs)
     }
 
     return result;
+}
+
+signed char U_bstream_get_s8(U_BStream *bs)
+{
+    return (signed char)U_bstream_get_u8(bs);
 }
 
 void U_bstream_get_bytes(U_BStream *bs, void *dst, unsigned long n)
@@ -233,6 +333,13 @@ unsigned short U_bstream_get_u16_be(U_BStream *bs)
     return result;
 }
 
+signed short U_bstream_get_s16_be(U_BStream *bs)
+{
+    unsigned short u16;
+    u16 = U_bstream_get_u16_be(bs);
+    return (signed short)u16;
+}
+
 unsigned long U_bstream_get_u32_le(U_BStream *bs)
 {
     unsigned long result;
@@ -281,6 +388,60 @@ unsigned long U_bstream_get_u32_be(U_BStream *bs)
     }
 
     return result;
+}
+
+signed long U_bstream_get_s32_be(U_BStream *bs)
+{
+    unsigned long u;
+    u = U_bstream_get_u32_be(bs);
+    /* sign-extend the low 32 bits; portable on ILP32/LP64/LLP64, no long long */
+    if (u & 0x80000000UL)
+        u |= (unsigned long)~0xFFFFFFFFUL;
+    return (signed long)u;
+}
+
+unsigned long U_bstream_get_leb128_u32(U_BStream *bs)
+{
+    unsigned long result;
+    unsigned long shift;
+    unsigned long chunk;
+    unsigned char byte;
+
+    result = 0;
+    shift = 0;
+
+    if (!bs->data)
+    {
+        bs->status = U_BSTREAM_NOT_INITIALISED;
+        return 0;
+    }
+
+    if (bs->status != U_BSTREAM_OK)
+        return 0;
+
+    while (bs->pos < bs->size)
+    {
+        byte = bs->data[bs->pos++];
+        chunk = (unsigned long)(byte & 0x7F);
+
+        if (shift >= 32 || (shift > 25 && chunk > (0xFFFFFFFFUL >> shift)))
+        {
+            /* more than 5 bytes, or a group whose bits fall above 32 */
+            bs->status = U_BSTREAM_DECODE_ERROR;
+            return 0;
+        }
+
+        result |= chunk << shift;
+
+        if ((byte & 0x80) == 0)
+            return result;
+
+        shift += 7;
+    }
+
+    /* ran out of bytes before a terminating group */
+    bs->status = U_BSTREAM_DECODE_ERROR;
+    return 0;
 }
 
 #ifdef U_BSTREAM_HAS_LONG_LONG
@@ -383,7 +544,7 @@ void U_bstream_put_s64_le(U_BStream *bs, long long v)
 
 unsigned long long U_bstream_get_u64_le(U_BStream *bs)
 {
-    int i;
+    unsigned long i;
     unsigned long long result;
     result = 0;
 
@@ -400,5 +561,41 @@ unsigned long long U_bstream_get_u64_le(U_BStream *bs)
 long long U_bstream_get_s64_le(U_BStream *bs)
 {
     return (long long)U_bstream_get_u64_le(bs);
+}
+
+void U_bstream_put_u64_be(U_BStream *bs, unsigned long long v)
+{
+    int i;
+    if (U_bstream_verify_write(bs, 8))
+    {
+        for (i = 7; i >= 0; i--)
+            bs->data[bs->pos++] = (unsigned char)((v >> (8 * i)) & 0xFF);
+    }
+}
+
+void U_bstream_put_s64_be(U_BStream *bs, long long v)
+{
+    U_bstream_put_u64_be(bs, (unsigned long long)v);
+}
+
+unsigned long long U_bstream_get_u64_be(U_BStream *bs)
+{
+    unsigned long i;
+    unsigned long long result;
+    result = 0;
+
+    if (U_bstream_verify_read(bs, 8))
+    {
+        for (i = 0; i < 8; i++)
+            result |= (unsigned long long)bs->data[bs->pos + i] << (8 * (7 - i));
+        bs->pos += 8;
+    }
+
+    return result;
+}
+
+long long U_bstream_get_s64_be(U_BStream *bs)
+{
+    return (long long)U_bstream_get_u64_be(bs);
 }
 #endif

@@ -207,6 +207,28 @@ TU_TEST(build_refuses_when_it_does_not_fit)
     TU_EQ(Spinel_Build(&bs, 1u, SPINEL_CMD_PROP_VALUE_IS, 0x21u, value, 4u), 0u);
 }
 
+/* A packed uint is the library's unsigned LEB128 (spinel.h): one decode and one encode. */
+static uint32_t packedRead(const uint8_t *data, uint16_t len, uint16_t *used, int *ok)
+{
+    U_BStream bs;
+    uint32_t v;
+
+    U_bstream_init(&bs, (void *)data, len);
+    v = (uint32_t)U_bstream_get_leb128_u32(&bs);
+    *ok = bs.status == U_BSTREAM_OK;
+    *used = (uint16_t)U_bstream_pos(&bs);
+    return v;
+}
+
+static uint16_t packedWrite(uint8_t *dst, uint16_t cap, uint32_t v)
+{
+    U_BStream bs;
+
+    U_bstream_init(&bs, dst, cap);
+    U_bstream_put_leb128_u32(&bs, v);
+    return bs.status == U_BSTREAM_OK ? (uint16_t)U_bstream_pos(&bs) : 0u;
+}
+
 TU_TEST(packed_uint_matches_the_spec_examples)
 {
     static const uint8_t ex0B[1] = {0x0Bu};
@@ -215,27 +237,27 @@ TU_TEST(packed_uint_matches_the_spec_examples)
                                                         * spec's little-endian
                                                         * "03 04" */
     uint8_t buf[8];
-    uint32_t v = 0u;
     uint16_t used = 0u;
     uint16_t n;
+    int ok = 0;
 
-    TU_EQ(Spinel_PackedRead(ex0B, 1u, &v, &used), 1);
-    TU_EQ(v, 0x0Bu);
+    TU_EQ(packedRead(ex0B, 1u, &used, &ok), 0x0Bu);
+    TU_EQ(ok, 1);
     TU_EQ(used, 1u);
-    TU_EQ(Spinel_PackedRead(exB0, 2u, &v, &used), 1);
-    TU_EQ(v, 0xB0u);
+    TU_EQ(packedRead(exB0, 2u, &used, &ok), 0xB0u);
+    TU_EQ(ok, 1);
     TU_EQ(used, 2u);
-    TU_EQ(Spinel_PackedRead(ex0403, 2u, &v, &used), 1);
-    TU_EQ(v, 0x0403u);
+    TU_EQ(packedRead(ex0403, 2u, &used, &ok), 0x0403u);
+    TU_EQ(ok, 1);
     TU_EQ(used, 2u);
 
-    n = Spinel_PackedWrite(buf, sizeof(buf), 0x0Bu);
+    n = packedWrite(buf, sizeof(buf), 0x0Bu);
     TU_EQ(n, 1u);
     TU_CHECK(sameBytes(buf, ex0B, 1u));
-    n = Spinel_PackedWrite(buf, sizeof(buf), 0xB0u);
+    n = packedWrite(buf, sizeof(buf), 0xB0u);
     TU_EQ(n, 2u);
     TU_CHECK(sameBytes(buf, exB0, 2u));
-    n = Spinel_PackedWrite(buf, sizeof(buf), 0x0403u);
+    n = packedWrite(buf, sizeof(buf), 0x0403u);
     TU_EQ(n, 2u);
     TU_CHECK(sameBytes(buf, ex0403, 2u));
 }
@@ -245,25 +267,48 @@ TU_TEST(packed_uint_round_trips_and_bounds)
     static const uint32_t values[] = {
         0u, 1u, 0x7Fu, 0x80u, 0x3FFFu, 0x4000u, 0x1FFFFFu, 0x200000u, 0x0FFFFFFFu, 0xFFFFFFFFu};
     uint8_t buf[8];
-    uint32_t back = 0u;
     uint16_t used = 0u;
+    int ok = 0;
     unsigned i;
 
     for (i = 0; i < sizeof(values) / sizeof(values[0]); ++i)
     {
-        uint16_t n = Spinel_PackedWrite(buf, sizeof(buf), values[i]);
+        uint16_t n = packedWrite(buf, sizeof(buf), values[i]);
 
-        TU_EQ(n, Spinel_PackedSize(values[i]));
-        TU_EQ(Spinel_PackedRead(buf, n, &back, &used), 1);
-        TU_EQ(back, values[i]);
+        TU_EQ(n, U_bstream_leb128_u32_size(values[i]));
+        TU_EQ(packedRead(buf, n, &used, &ok), values[i]);
+        TU_EQ(ok, 1);
         TU_EQ(used, n);
     }
-    /* 0xFFFFFFFF needs five bytes; a sixth continuation byte is not this encoding. */
-    TU_EQ(Spinel_PackedSize(0xFFFFFFFFu), 5u);
+    /* 0xFFFFFFFF needs five bytes; a sixth continuation byte, a fifth group with bits above 32 and a
+     * value cut short are not this encoding, and a value that does not fit is not written in part. */
+    TU_EQ(U_bstream_leb128_u32_size(0xFFFFFFFFu), 5u);
     {
         static const uint8_t six[6] = {0x80u, 0x80u, 0x80u, 0x80u, 0x80u, 0x01u};
-        TU_EQ(Spinel_PackedRead(six, 6u, &back, &used), 0);
+        static const uint8_t above32[5] = {0xFFu, 0xFFu, 0xFFu, 0xFFu, 0x1Fu};
+        static const uint8_t cut[2] = {0x80u, 0x80u};
+
+        (void)packedRead(six, 6u, &used, &ok);
+        TU_EQ(ok, 0);
+        (void)packedRead(above32, 5u, &used, &ok);
+        TU_EQ(ok, 0);
+        (void)packedRead(cut, 2u, &used, &ok);
+        TU_EQ(ok, 0);
+        TU_EQ(packedWrite(buf, 2u, 0x4000u), 0u);
     }
+}
+
+/* A property id is read the same way, so one that does not decode leaves the frame unanswered. */
+TU_TEST(a_property_id_past_32_bits_is_not_a_frame)
+{
+    static const uint8_t frame[7] = {0x81u, SPINEL_CMD_PROP_VALUE_GET, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0x1Fu};
+    static const uint8_t wide[7] = {0x81u, SPINEL_CMD_PROP_VALUE_GET, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0x0Fu};
+    Spinel_Frame f;
+
+    TU_EQ(Spinel_Decode(frame, sizeof(frame), &f), 0);
+    TU_EQ(Spinel_Decode(wide, sizeof(wide), &f), 1);
+    TU_EQ(f.prop, 0xFFFFFFFFu);
+    TU_EQ(f.valueLen, 0u);
 }
 
 TU_TEST(rejects_malformed_headers_and_truncation)
@@ -339,6 +384,7 @@ int main(void)
         {"build_refuses_when_it_does_not_fit", build_refuses_when_it_does_not_fit},
         {"packed_uint_matches_the_spec_examples", packed_uint_matches_the_spec_examples},
         {"packed_uint_round_trips_and_bounds", packed_uint_round_trips_and_bounds},
+        {"a_property_id_past_32_bits_is_not_a_frame", a_property_id_past_32_bits_is_not_a_frame},
         {"rejects_malformed_headers_and_truncation", rejects_malformed_headers_and_truncation},
         {"random_frames_never_escape_the_buffer", random_frames_never_escape_the_buffer}};
 

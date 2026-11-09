@@ -63,22 +63,35 @@ extern "C" {
 
 U_LIBAPI void U_bstream_init(U_BStream *bs, void *data, unsigned long size);
 U_LIBAPI unsigned long U_bstream_remaining(U_BStream *bs);
+U_LIBAPI unsigned long U_bstream_pos(U_BStream *bs);
+U_LIBAPI int U_bstream_fits(U_BStream *bs, unsigned long n);
 U_LIBAPI void U_bstream_advance(U_BStream *bs, unsigned long n);
 U_LIBAPI void U_bstream_seek(U_BStream *bs, unsigned long pos);
 U_LIBAPI void U_bstream_put_u8(U_BStream *bs, unsigned char v);
+U_LIBAPI void U_bstream_put_s8(U_BStream *bs, signed char v);
 U_LIBAPI void U_bstream_put_bytes(U_BStream *bs, const void *src, unsigned long n);
 U_LIBAPI void U_bstream_put_u16_le(U_BStream *bs, unsigned short v);
 U_LIBAPI void U_bstream_put_s16_le(U_BStream *bs, signed short v);
+U_LIBAPI void U_bstream_put_u16_be(U_BStream *bs, unsigned short v);
+U_LIBAPI void U_bstream_put_s16_be(U_BStream *bs, signed short v);
 U_LIBAPI void U_bstream_put_u32_le(U_BStream *bs, unsigned long v);
 U_LIBAPI void U_bstream_put_s32_le(U_BStream *bs, signed long v);
+U_LIBAPI void U_bstream_put_u32_be(U_BStream *bs, unsigned long v);
+U_LIBAPI void U_bstream_put_s32_be(U_BStream *bs, signed long v);
+U_LIBAPI void U_bstream_put_leb128_u32(U_BStream *bs, unsigned long v);
+U_LIBAPI unsigned long U_bstream_leb128_u32_size(unsigned long v);
 U_LIBAPI unsigned char U_bstream_get_u8(U_BStream *bs);
+U_LIBAPI signed char U_bstream_get_s8(U_BStream *bs);
 U_LIBAPI void U_bstream_get_bytes(U_BStream *bs, void *dst, unsigned long n);
 U_LIBAPI unsigned short U_bstream_get_u16_le(U_BStream *bs);
 U_LIBAPI signed short U_bstream_get_s16_le(U_BStream *bs);
 U_LIBAPI unsigned short U_bstream_get_u16_be(U_BStream *bs);
+U_LIBAPI signed short U_bstream_get_s16_be(U_BStream *bs);
 U_LIBAPI unsigned long U_bstream_get_u32_le(U_BStream *bs);
 U_LIBAPI signed long U_bstream_get_s32_le(U_BStream *bs);
 U_LIBAPI unsigned long U_bstream_get_u32_be(U_BStream *bs);
+U_LIBAPI signed long U_bstream_get_s32_be(U_BStream *bs);
+U_LIBAPI unsigned long U_bstream_get_leb128_u32(U_BStream *bs);
 
 #ifdef U_BSTREAM_HAS_LONG_LONG
 U_LIBAPI void U_bstream_put_leb128_s64(U_BStream *bs, long long v);
@@ -87,6 +100,10 @@ U_LIBAPI void U_bstream_put_u64_le(U_BStream *bs, unsigned long long v);
 U_LIBAPI void U_bstream_put_s64_le(U_BStream *bs, long long v);
 U_LIBAPI unsigned long long U_bstream_get_u64_le(U_BStream *bs);
 U_LIBAPI long long U_bstream_get_s64_le(U_BStream *bs);
+U_LIBAPI void U_bstream_put_u64_be(U_BStream *bs, unsigned long long v);
+U_LIBAPI void U_bstream_put_s64_be(U_BStream *bs, long long v);
+U_LIBAPI unsigned long long U_bstream_get_u64_be(U_BStream *bs);
+U_LIBAPI long long U_bstream_get_s64_be(U_BStream *bs);
 #endif
 
 #ifdef __cplusplus

@@ -102,12 +102,7 @@ rcpTxDoneSecured(Rcp_Session *s, U_BStream *out, uint8_t tid, uint32_t status, i
     uint16_t n;
 
     U_bstream_init(&vs, value, sizeof(value));
-    {
-        uint8_t packed[5];
-
-        n = Spinel_PackedWrite(packed, sizeof(packed), status);
-        U_bstream_put_bytes(&vs, packed, n);
-    }
+    U_bstream_put_leb128_u32(&vs, status);
     U_bstream_put_u8(&vs, framePending ? 1u : 0u);
     U_bstream_put_u8(&vs, s->txSec.headerUpdated ? 1u : 0u);
 
@@ -129,7 +124,7 @@ rcpTxDoneSecured(Rcp_Session *s, U_BStream *out, uint8_t tid, uint32_t status, i
         U_bstream_put_u32_le(&vs, s->txSec.frameCounter);
     }
 
-    n = Spinel_Build(out, tid, SPINEL_CMD_PROP_VALUE_IS, 0u, value, (uint16_t)(sizeof(value) - U_bstream_remaining(&vs)));
+    n = Spinel_Build(out, tid, SPINEL_CMD_PROP_VALUE_IS, 0u, value, (uint16_t)U_bstream_pos(&vs));
 
     if (n == 0u)
         s->dropped++;
@@ -191,7 +186,7 @@ rcpAnswer(Rcp_Session *s, U_BStream *out, uint8_t tid, uint32_t prop, uint32_t s
 
             if (got == SPINEL_STATUS_OK)
             {
-                uint16_t vlen = (uint16_t)(sizeof(value) - U_bstream_remaining(&vs));
+                uint16_t vlen = (uint16_t)U_bstream_pos(&vs);
 
                 n = Spinel_Build(out, tid, SPINEL_CMD_PROP_VALUE_IS, prop, value, vlen);
             }

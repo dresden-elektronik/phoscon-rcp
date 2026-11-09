@@ -25,75 +25,11 @@ int Spinel_HeaderTid(uint8_t header)
     return (int)(header & SPINEL_TID_MASK);
 }
 
-int Spinel_PackedRead(const uint8_t *data, uint16_t len, uint32_t *value, uint16_t *used)
-{
-    uint32_t v = 0u;
-    uint16_t i;
-    uint16_t shift = 0u;
-
-    if (data == 0 || value == 0)
-        return 0;
-    /* Five bytes is the most a 32-bit value can need at 7 bits per byte (docs/protocol.md §4). */
-    for (i = 0u; i < len && i < 5u; ++i)
-    {
-        v |= (uint32_t)(data[i] & 0x7Fu) << shift;
-
-        if ((data[i] & 0x80u) == 0u)
-        {
-            *value = v;
-
-            if (used != 0)
-                *used = (uint16_t)(i + 1u);
-
-            return 1;
-        }
-
-        shift = (uint16_t)(shift + 7u);
-    }
-
-    return 0;
-}
-
-uint16_t Spinel_PackedSize(uint32_t value)
-{
-    uint16_t n = 1u;
-
-    while (value >= 0x80u)
-    {
-        value >>= 7;
-        n++;
-    }
-
-    return n;
-}
-
-uint16_t Spinel_PackedWrite(uint8_t *dst, uint16_t max, uint32_t value)
-{
-    uint16_t n = 0u;
-
-    if (dst == 0)
-        return 0u;
-
-    do
-    {
-        if (n >= max)
-            return 0u;
-
-        dst[n] = (uint8_t)(value & 0x7Fu);
-        value >>= 7;
-
-        if (value != 0u)
-            dst[n] = (uint8_t)(dst[n] | 0x80u);
-
-        n++;
-    } while (value != 0u);
-    return n;
-}
-
 int Spinel_Decode(const uint8_t *data, uint16_t len, Spinel_Frame *out)
 {
-    uint16_t used = 0u;
-    uint32_t prop = 0u;
+    U_BStream bs;
+    uint32_t prop;
+    uint16_t used;
     int tid;
 
     if (data == 0 || out == 0 || len < 2u)
@@ -117,8 +53,15 @@ int Spinel_Decode(const uint8_t *data, uint16_t len, Spinel_Frame *out)
         return 1;
     }
 
-    if (!Spinel_PackedRead(&data[2], (uint16_t)(len - 2u), &prop, &used))
+    /* At most five bytes, the most a 32-bit value needs; anything longer, or bits above 32, is not a
+     * property id (docs/protocol.md §4). */
+    U_bstream_init(&bs, (void *)&data[2], (unsigned long)(len - 2u));
+    prop = (uint32_t)U_bstream_get_leb128_u32(&bs);
+
+    if (bs.status != U_BSTREAM_OK)
         return 0;
+
+    used = (uint16_t)U_bstream_pos(&bs);
 
     out->prop = prop;
     out->value = &data[2u + used];
@@ -133,47 +76,32 @@ uint16_t Spinel_Build(U_BStream *dst,
                       const uint8_t *value,
                       uint16_t valueLen)
 {
-    uint8_t packed[5];
-    uint16_t packedLen;
     uint16_t need;
-    uint16_t i;
 
     if (dst == 0 || (value == 0 && valueLen != 0u))
         return 0u;
 
-    packedLen = Spinel_PackedWrite(packed, (uint16_t)sizeof(packed), prop);
+    need = (uint16_t)(2u + U_bstream_leb128_u32_size(prop) + valueLen);
 
-    if (packedLen == 0u)
-        return 0u;
-
-    need = (uint16_t)(2u + packedLen + valueLen);
-
-    if ((uint32_t)need > U_bstream_remaining(dst))
+    if (!U_bstream_fits(dst, need))
         return 0u;
 
     U_bstream_put_u8(dst, Spinel_Header(tid));
     U_bstream_put_u8(dst, cmd);
-
-    for (i = 0u; i < packedLen; ++i)
-        U_bstream_put_u8(dst, packed[i]);
-
-    for (i = 0u; i < valueLen; ++i)
-        U_bstream_put_u8(dst, value[i]);
-
+    U_bstream_put_leb128_u32(dst, prop);
+    U_bstream_put_bytes(dst, value, valueLen);
     return need;
 }
 
 uint16_t Spinel_BuildStatus(U_BStream *dst, uint8_t tid, uint32_t status)
 {
     uint8_t packed[5];
-    uint16_t n;
+    U_BStream vs;
 
-    n = Spinel_PackedWrite(packed, (uint16_t)sizeof(packed), status);
-
-    if (n == 0u)
-        return 0u;
     /* LAST_STATUS is property 0 and carries a packed uint (docs/protocol.md §4). */
-    return Spinel_Build(dst, tid, SPINEL_CMD_PROP_VALUE_IS, 0u, packed, n);
+    U_bstream_init(&vs, packed, sizeof(packed));
+    U_bstream_put_leb128_u32(&vs, status);
+    return Spinel_Build(dst, tid, SPINEL_CMD_PROP_VALUE_IS, 0u, packed, (uint16_t)U_bstream_pos(&vs));
 }
 
 uint16_t Spinel_BuildTxStatus(U_BStream *dst, uint8_t tid, uint32_t status, int framePending)
@@ -183,14 +111,13 @@ uint16_t Spinel_BuildTxStatus(U_BStream *dst, uint8_t tid, uint32_t status, int 
      * received ACK's Frame Pending subfield; headerUpdated is 0 because TRANSMIT_SEC is not
      * advertised; the ACK frame itself may be empty. */
     uint8_t value[7];
-    uint16_t n = Spinel_PackedWrite(value, (uint16_t)sizeof(value), status);
+    U_BStream vs;
 
-    if (n == 0u)
-        return 0u;
-
-    value[n] = framePending ? 1u : 0u;
-    value[n + 1u] = 0u;
-    return Spinel_Build(dst, tid, SPINEL_CMD_PROP_VALUE_IS, 0u, value, (uint16_t)(n + 2u));
+    U_bstream_init(&vs, value, sizeof(value));
+    U_bstream_put_leb128_u32(&vs, status);
+    U_bstream_put_u8(&vs, framePending ? 1u : 0u);
+    U_bstream_put_u8(&vs, 0u);
+    return Spinel_Build(dst, tid, SPINEL_CMD_PROP_VALUE_IS, 0u, value, (uint16_t)U_bstream_pos(&vs));
 }
 
 uint16_t Spinel_BuildLastStatus(U_BStream *dst, uint32_t status)
