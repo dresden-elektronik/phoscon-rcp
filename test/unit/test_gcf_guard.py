@@ -5,7 +5,7 @@
 
 The guard is the last host-side check before GCFFlasher writes: magic, the board's container type, the
 app origin, the region the image must not touch, both checksum layers of the ConBee III's nested
-container, and freshness against the binary it was packaged from. Each of those is a rule a bug in the
+container, and that it is the binary's: the plain image's size and checksum, and not older than it. Each of those is a rule a bug in the
 guard can break, and a guard that fails open looks exactly like one that passes - so every rule gets a
 container that satisfies it and one that does not, and the verdict (exit code plus the reason in the
 message) is asserted.
@@ -51,10 +51,20 @@ def wrap(payload, type_byte, target, crc=None, magic=GCF_MAGIC):
     return head + bytes([crc8(payload) if crc is None else crc]) + payload
 
 
+def pattern(length, step=13):
+    """A plain image the containers below are packed from; any bytes do, as long as they are known."""
+    return bytes((i * step + 5) & 0xFF for i in range(length))
+
+
+CLASSIC_IMAGE = pattern(1024)
+
+
 def cb3(outer_type=60, outer_target=CB3_ORIGIN, inner_target=CB3_ORIGIN,
         plain_size=4096, image_size=None, image_type=61, product=0xDEC0DE03,
-        outer_crc=None, inner_crc=None, inner_total=None, magic=GCF_MAGIC):
-    """A structurally valid ConBee III container: outer header over the nested inner container."""
+        outer_crc=None, inner_crc=None, inner_total=None, magic=GCF_MAGIC, image=None):
+    """A structurally valid ConBee III container: outer header over the nested inner container, which
+    carries the plain image's size and CRC-32 as GCFTool writes them."""
+    image = pattern(plain_size, 11) if image is None else image
     data_len = (plain_size + 15) // 16 * 16
     if image_size is None:
         image_size = 20 + data_len
@@ -63,15 +73,19 @@ def cb3(outer_type=60, outer_target=CB3_ORIGIN, inner_target=CB3_ORIGIN,
     stored = 8 + 20 + data_len + 4
     inner = struct.pack("<II", product, stored if inner_total is None else inner_total)
     inner += struct.pack("<IIII", image_size, image_type, inner_target, plain_size)
-    inner += struct.pack("<I", zlib.crc32(b"\xFF" * ((plain_size + 3) // 4 * 4)) & 0xFFFFFFFF)
+    inner += struct.pack("<I", zlib.crc32(image) & 0xFFFFFFFF)
     inner += b"\x5A" * data_len   # the guard never looks inside the payload
     inner += struct.pack("<I", zlib.crc32(inner) & 0xFFFFFFFF if inner_crc is None else inner_crc)
     return wrap(inner, outer_type, outer_target, outer_crc, magic)
 
 
-def classic(payload_len=1024, type_byte=1, target=0x5000, size=None, crc=None):
-    return wrap(b"\x11" * payload_len, type_byte, target, crc) if size is None else \
-        struct.pack("<IBII", GCF_MAGIC, type_byte, target, size) + bytes([crc8(b"\x11" * payload_len) if crc is None else crc]) + b"\x11" * payload_len
+def classic(payload_len=None, type_byte=1, target=0x5000, size=None, crc=None, image=None):
+    """A ConBee II / RaspBee II container: the size field and the header CRC-8 describe the plain
+    image, and the payload stands in for its encryption (the guard holds no key)."""
+    image = (CLASSIC_IMAGE if payload_len is None else pattern(payload_len)) if image is None else image
+    payload = bytes(b ^ 0x5A for b in image)
+    head = struct.pack("<IBII", GCF_MAGIC, type_byte, target, len(payload) if size is None else size)
+    return head + bytes([crc8(image) if crc is None else crc]) + payload
 
 
 def avr_image(length=1026):
@@ -94,13 +108,16 @@ def avr(image=None, type_byte=1, target=0, crc=None, plain=False, tail=None, siz
 
 
 def verdict(board, gcf, work, tag, image=None):
-    """Run the guard on a container and a fresh image; return (exit code, message)."""
+    """Run the guard on a container and an older image; return (exit code, message). The image is
+    the one the board's default container was packed from unless the case names another."""
+    if image is None:
+        image = pattern(4096, 11) if board == "cb3" else CLASSIC_IMAGE
     gcf_path = os.path.join(work, tag + ".GCF")
     bin_path = os.path.join(work, tag + ".bin")
     with open(gcf_path, "wb") as f:
         f.write(gcf)
     with open(bin_path, "wb") as f:
-        f.write(b"\x00" * 1024 if image is None else image)
+        f.write(image)
     now = time.time()
     os.utime(gcf_path, (now, now))
     os.utime(bin_path, (now - 60, now - 60))
@@ -139,11 +156,18 @@ def main() -> int:
     expect("wrong product magic", "cb3", cb3(product=0x11223344), 1, "not ConBee III/Hive")
     expect("Hive magic accepted on the cb3 guard", "cb3", cb3(product=0xDEC0DE02), 0, "OK")
     expect("app past the AppSection budget", "cb3", cb3(plain_size=CB3_BUDGET + 1), 1, "AppSection", "budget")
-    expect("app at exactly the budget passes", "cb3", cb3(plain_size=CB3_BUDGET), 0, "OK")
+    expect("app at exactly the budget passes", "cb3", cb3(plain_size=CB3_BUDGET), 0, "OK",
+           image=pattern(CB3_BUDGET, 11))
     expect("plain image type 60 refused", "cb3", cb3(image_type=60), 1, "61..65")
     expect("compressed image type refused", "cb3", cb3(image_type=71), 1, "61..65")
     expect("bootloader image type refused", "cb3", cb3(image_type=81), 1, "61..65")
     expect("image size inconsistent with the plain size", "cb3", cb3(image_size=100), 1, "inconsistent")
+    other = bytearray(pattern(4096, 11))
+    other[100] ^= 1
+    expect("newer container from another build of the same size", "cb3", cb3(), 1, "CRC-32", "another build",
+           image=bytes(other))
+    expect("newer container from another build of another size", "cb3", cb3(), 1, "plain size", "another build",
+           image=pattern(4080, 11))
 
     print("== cb2 and rb2: the classic container ==")
     expect("valid cb2 container", "cb2", classic(), 0, "OK", "board=cb2", "0x3EF00")
@@ -154,6 +178,12 @@ def main() -> int:
     expect("target 0 would overwrite the bootloader", "cb2", classic(target=0), 1, "target", "bootloader")
     expect("image reaching NVRAM refused", "cb2", classic(payload_len=0x3A000), 1, "NVRAM")
     expect("size field not matching the file", "cb2", classic(size=999), 1, "size field")
+    other = bytearray(CLASSIC_IMAGE)
+    other[100] ^= 1
+    expect("newer container from another build of the same size", "cb2", classic(), 1, "CRC-8", "another build",
+           image=bytes(other))
+    expect("newer container from another build of another size", "rb2", classic(type_byte=31), 1,
+           "size field", "another build", image=pattern(1000))
 
     print("== cbrb1: the RaspBee I bootloader's container ==")
     img = avr_image()
@@ -183,7 +213,7 @@ def main() -> int:
     with open(gcf_path, "wb") as f:
         f.write(classic())
     with open(bin_path, "wb") as f:
-        f.write(b"\x00" * 1024)
+        f.write(CLASSIC_IMAGE)
     old = time.time() - 120
     os.utime(gcf_path, (old, old))
     os.utime(bin_path, None)

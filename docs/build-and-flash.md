@@ -160,9 +160,9 @@ Every flash path runs `tools/gcf_check.py --board <board>` before GCFFlasher; no
 | type | the type is not the board's (`1..10` `cb2` and `cbrb1`, `31..39` `rb2`, `60` `cb3`), or it is plaintext `0`. A ConBee II container offered to a RaspBee II is refused here |
 | target | `0x5000` (`cb2`, `rb2`), `0x4000` (`cb3`), `0` (`cbrb1`) is not what the header says |
 | size | the image reaches a protected region (Figure 5); for `cbrb1` also an odd size, a whole number of 256-byte pages, or a `.bin` that does not start with a jump (`docs/hardware_avr.md`) |
-| CRCs | `cb3`: the outer CRC-8 or the inner CRC-32 does not verify; `cbrb1`: the header CRC-8 does not match the `.bin` |
+| CRCs | `cb3`: the outer CRC-8 or the inner CRC-32 does not verify |
 | inner shape | `cb3`: the product magic, the inner type or the inner target is wrong |
-| freshness | the `.GCF` is older than the `.bin` it was made from |
+| the `.bin`'s | the container was packed from another image: its size, or its plain-image checksum (the header CRC-8 on `cb2`, `rb2` and `cbrb1`, the inner CRC-32 on `cb3`), does not match the `.bin`; or the `.GCF` is older than the `.bin` |
 
 A released container comes without its `.bin`: `--released` runs every check that needs only the container (§12).
 

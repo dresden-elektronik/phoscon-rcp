@@ -23,7 +23,10 @@ Checks (all must pass, exit 0; else non-zero):
      0x3EF00 must survive, for cb3 the image must stay inside the AppSection
      minus the AppInfo trailer
   5. for cb3, both checksum layers and the inner container's shape
-  6. the GCF is not stale (not older than the .bin it was made from)
+  6. the GCF is the .bin's: its size and its plain-image checksum match the .bin (the header CRC-8
+     for cb2, rb2 and cbrb1, the inner CRC-32 of the plain image for cb3), and it is not older than
+     the .bin. The checksum catches a container left over from another build, which a newer file
+     date does not; the date still backs the CRC-8, which one changed image in 256 would pass.
 
 Board: --board cb2 (default) | --board rb2 | --board cb3 | --board cbrb1. cb2 and
 rb2 containers target 0x5000 and share the NVRAM bound; what differs is the key, so the type range
@@ -75,6 +78,14 @@ def crc32(data: bytes) -> int:
     return zlib.crc32(data) & 0xFFFFFFFF
 
 
+def stale(gcf: str, binp: str) -> bool:
+    """1 when the container is older than the image: a rebuild that was not repackaged."""
+    if os.path.getmtime(gcf) + 1 < os.path.getmtime(binp):
+        print(f"gcf_check: {gcf} STALE — repackage from {binp} first")
+        return True
+    return False
+
+
 def check_cb3(gcf: str, board: str, addr: int, size: int, fsize: int,
               binp: str) -> int:
     """Verify the nested ConBee III container: outer CRC-8 over the stored inner
@@ -121,9 +132,22 @@ def check_cb3(gcf: str, board: str, addr: int, size: int, fsize: int,
         print(f"gcf_check: image size {image_size} inconsistent with plain "
             f"size {plain_size} (0xFF stuffing to the AES block size)")
         return 1
-    if binp and os.path.getmtime(gcf) + 1 < os.path.getmtime(binp):
-        print(f"gcf_check: {gcf} STALE — repackage from {binp} first")
-        return 1
+    if binp:
+        # The inner header carries the plain image's size and CRC-32 (+20, +24), which is what the
+        # bootloader checks after it decrypts: a container from another build cannot pass for this one.
+        with open(binp, "rb") as f:
+            image = f.read()
+        if plain_size != len(image):
+            print(f"gcf_check: plain size {plain_size} != image {len(image)} B in {binp}: "
+                  "the container is from another build")
+            return 1
+        plain_crc = struct.unpack_from("<I", inner, 24)[0]
+        if plain_crc != crc32(image):
+            print(f"gcf_check: plain CRC-32 0x{plain_crc:08X} != 0x{crc32(image):08X} of {binp}: "
+                  "the container is from another build")
+            return 1
+        if stale(gcf, binp):
+            return 1
     print(f"gcf_check: OK board={board} type={whole[4]} target=0x{addr:X} "
           f"inner={size} image type={image_type} plain={plain_size} "
           f"(AppSection budget {limit} B)")
@@ -183,8 +207,7 @@ def check_avr(gcf: str, board: str, addr: int, size: int, fsize: int,
     if body and payload[:body] == image[:body]:
         print("gcf_check: payload equals the plain image, but the type says XTEA")
         return 1
-    if os.path.getmtime(gcf) + 1 < os.path.getmtime(binp):
-        print(f"gcf_check: {gcf} STALE — repackage from {binp} first")
+    if stale(gcf, binp):
         return 1
     print(f"gcf_check: OK board={board} type={whole[4]} target=0x0 size={size} "
           f"(ends 0x{size:X} < 0x{AVR_BOOT_BASE:X}) crc=0x{whole[13]:02X}")
@@ -251,9 +274,20 @@ def main() -> int:
         print(f"gcf_check: image 0x{addr:X}..0x{addr + size:X} "
               f"overruns NVRAM @ 0x{NVRAM_BASE:X}")
         return 1
-    if binp and os.path.getmtime(gcf) + 1 < os.path.getmtime(binp):
-        print(f"gcf_check: {gcf} STALE — repackage from {binp} first")
-        return 1
+    if binp:
+        # The size field and the header CRC-8 describe the plain image (GCFTool, -b cb2 and -b rb2).
+        with open(binp, "rb") as f:
+            image = f.read()
+        if size != len(image):
+            print(f"gcf_check: size field {size} != image {len(image)} B in {binp}: "
+                  "the container is from another build")
+            return 1
+        if h[13] != crc8(image):
+            print(f"gcf_check: header CRC-8 0x{h[13]:02X} != 0x{crc8(image):02X} of {binp}: "
+                  "the container is from another build")
+            return 1
+        if stale(gcf, binp):
+            return 1
     print(f"gcf_check: OK board={board} type={ftype} target=0x{addr:X} "
           f"size={size} (ends 0x{addr + size:X} < 0x{NVRAM_BASE:X})")
     return 0
