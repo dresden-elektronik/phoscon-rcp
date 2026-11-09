@@ -17,6 +17,9 @@ uint32_t fakeRadioTxCount;
 uint32_t fakeRadioLeftOpen;
 uint8_t fakeRadioChannel = RADIO_CHAN_MIN;
 uint8_t fakeRadioTxChannel;
+uint32_t fakeRadioSrcMatchPushes;
+uint8_t fakeRadioSrcMatchEnabled;
+uint8_t fakeRadioSrcMatchShorts;
 
 static void (*fakeRxHandler)(const Radio_Frame *frame);
 static void (*fakeTxDoneHandler)(void *token, int status, int framePending);
@@ -114,7 +117,9 @@ int Radio_SetExtAddr(const uint8_t ext8[8], int on)
 
 int Radio_SetSrcMatch(const SrcMatch_Table *table)
 {
-    (void)table;
+    fakeRadioSrcMatchPushes++;
+    fakeRadioSrcMatchEnabled = table->enabled;
+    fakeRadioSrcMatchShorts = table->shortCount;
     return 1;
 }
 

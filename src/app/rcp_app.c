@@ -84,8 +84,6 @@ static uint16_t rcpRadioPanId;
 static uint16_t rcpRadioShortAddr;
 static uint8_t rcpRadioExtAddr[8];
 static int rcpRadioAddrSet;
-static uint8_t rcpRadioSrcMatchGen; /* the generation the radio holds; 0 = nothing pushed */
-static int rcpRadioSrcMatchPushed;
 
 /* ---- the energy-scan dwell (rcp/scan.h) --------------------------------
  * The machine's state is app-owned and advanced once per pass; only this seam turns a scan property
@@ -481,18 +479,16 @@ static void rcpAppApplyRadio(void)
             }
         }
 
-        /* The source-match table follows the property, and the property carries its own
-         * generation, so a pass with no change costs a byte compare (docs/protocol.md §10.2). */
-        if (!rcpRadioSrcMatchPushed ||
-            rcpSession.props.srcMatch.generation != rcpRadioSrcMatchGen)
+        /* The source-match table follows the property, which says when it changed - a RESET that
+         * empties it included - so a pass with no change costs a byte test (docs/protocol.md §10.2). */
+        if (rcpSession.props.srcMatch.changed)
         {
             if (!Radio_SetSrcMatch(&rcpSession.props.srcMatch))
             {
                 return; /* the radio recorded why; retried next pass */
             }
 
-            rcpRadioSrcMatchGen = rcpSession.props.srcMatch.generation;
-            rcpRadioSrcMatchPushed = 1;
+            rcpSession.props.srcMatch.changed = 0u;
         }
 
         if (!Scan_OwnsRadio(&rcpScan) && (!rcpRadioReady || wantFilter != (uint8_t)rcpRadioFilter))

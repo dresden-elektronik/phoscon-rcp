@@ -618,7 +618,7 @@ uint32_t Props_Set(Props_State *s, uint32_t id, const uint8_t *value, uint16_t l
             /* Off is not "no source match": it is the standard's fallback, every Ack to a Data
              * Request claiming pending (docs/protocol.md §10.2). */
             s->srcMatch.enabled = (value[0] != 0u) ? 1u : 0u;
-            s->srcMatch.generation = (uint8_t)(s->srcMatch.generation + 1u);
+            s->srcMatch.changed = 1u;
             break;
 
         case PROPS_ID_MAC_PROMISCUOUS:

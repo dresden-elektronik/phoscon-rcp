@@ -32,7 +32,10 @@ typedef struct
      * received frame's source address is compared in. */
     uint8_t extAddr[SRCMATCH_EXT_MAX][SRCMATCH_EXT_LEN];
     uint8_t extCount;
-    uint8_t generation; /* bumps on every mutation: how the app knows to push the table down */
+    /* 1 from a change until the radio holds the table: how the app knows to push it down. Set by every
+     * mutation and by SrcMatch_Init, because a RESET that empties the table changes it; a flag rather
+     * than a count, so nothing can wrap onto the value the radio last took. */
+    uint8_t changed;
 } SrcMatch_Table;
 
 /* Status returns of the mutating calls, mapped to Spinel by the caller. */

@@ -44,7 +44,7 @@ void SrcMatch_Init(SrcMatch_Table *t)
     t->enabled = 0u;
     t->shortCount = 0u;
     t->extCount = 0u;
-    t->generation = 0u;
+    t->changed = 1u;
 }
 
 int SrcMatch_SetShortList(SrcMatch_Table *t, const uint8_t *value, uint16_t len)
@@ -69,7 +69,7 @@ int SrcMatch_SetShortList(SrcMatch_Table *t, const uint8_t *value, uint16_t len)
         t->shortAddr[i] = (uint16_t)((uint16_t)value[2u * i] | ((uint16_t)value[2u * i + 1u] << 8));
 
     t->shortCount = (uint8_t)count;
-    t->generation = (uint8_t)(t->generation + 1u);
+    t->changed = 1u;
     return SRCMATCH_OK;
 }
 
@@ -97,7 +97,7 @@ int SrcMatch_SetExtList(SrcMatch_Table *t, const uint8_t *value, uint16_t len)
     }
 
     t->extCount = (uint8_t)count;
-    t->generation = (uint8_t)(t->generation + 1u);
+    t->changed = 1u;
     return SRCMATCH_OK;
 }
 
@@ -114,7 +114,7 @@ int SrcMatch_InsertShort(SrcMatch_Table *t, uint16_t addr)
 
     t->shortAddr[t->shortCount] = addr;
     t->shortCount = (uint8_t)(t->shortCount + 1u);
-    t->generation = (uint8_t)(t->generation + 1u);
+    t->changed = 1u;
     return SRCMATCH_OK;
 }
 
@@ -135,7 +135,7 @@ int SrcMatch_InsertExt(SrcMatch_Table *t, const uint8_t ext[SRCMATCH_EXT_LEN])
         t->extAddr[t->extCount][k] = ext[k];
 
     t->extCount = (uint8_t)(t->extCount + 1u);
-    t->generation = (uint8_t)(t->generation + 1u);
+    t->changed = 1u;
     return SRCMATCH_OK;
 }
 
@@ -158,7 +158,7 @@ int SrcMatch_RemoveShort(SrcMatch_Table *t, uint16_t addr)
         t->shortAddr[i] = t->shortAddr[i + 1u];
 
     t->shortCount = (uint8_t)(t->shortCount - 1u);
-    t->generation = (uint8_t)(t->generation + 1u);
+    t->changed = 1u;
     return SRCMATCH_OK;
 }
 
@@ -183,7 +183,7 @@ int SrcMatch_RemoveExt(SrcMatch_Table *t, const uint8_t ext[SRCMATCH_EXT_LEN])
     }
 
     t->extCount = (uint8_t)(t->extCount - 1u);
-    t->generation = (uint8_t)(t->generation + 1u);
+    t->changed = 1u;
     return SRCMATCH_OK;
 }
 
@@ -263,7 +263,7 @@ void SrcMatch_Copy(SrcMatch_Table *dst, const SrcMatch_Table *src)
     dst->enabled = src->enabled;
     dst->shortCount = src->shortCount;
     dst->extCount = src->extCount;
-    dst->generation = src->generation;
+    dst->changed = src->changed;
 
     srcMatchCopyBytes((volatile uint8_t *)dst->shortAddr,
                       (const uint8_t *)src->shortAddr,

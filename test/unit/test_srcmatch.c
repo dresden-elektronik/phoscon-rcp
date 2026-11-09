@@ -257,38 +257,39 @@ TU_TEST(the_radios_copy_holds_the_extended_addresses_in_on_air_order)
     TU_EQ(SrcMatch_HasExt(&t, wire), 1);
 }
 
-TU_TEST(every_mutation_bumps_the_generation_and_nothing_else_does)
+TU_TEST(every_mutation_marks_the_table_changed_and_nothing_else_does)
 {
     SrcMatch_Table t;
-    uint8_t g;
     uint8_t e[SRCMATCH_EXT_LEN] = {1, 1, 1, 1, 1, 1, 1, 1};
 
+    /* An emptied table is a change: a RESET must reach the radio. */
     SrcMatch_Init(&t);
-    g = t.generation;
+    TU_EQ(t.changed, 1u);
+    t.changed = 0u;
 
     TU_EQ(SrcMatch_HasShort(&t, 1u), 0);
+    TU_EQ(t.changed, 0u);
     TU_EQ(SrcMatch_InsertShort(&t, 1u), SRCMATCH_OK);
-    TU_NE(t.generation, g);
-    g = t.generation;
+    TU_EQ(t.changed, 1u);
+    t.changed = 0u;
 
     /* A duplicate insert changes nothing, so it must not look like a change to the app. */
     TU_EQ(SrcMatch_InsertShort(&t, 1u), SRCMATCH_OK);
-    TU_EQ(t.generation, g);
+    TU_EQ(t.changed, 0u);
 
     TU_EQ(SrcMatch_InsertExt(&t, e), SRCMATCH_OK);
-    TU_NE(t.generation, g);
-    g = t.generation;
+    TU_EQ(t.changed, 1u);
+    t.changed = 0u;
 
     TU_EQ(SrcMatch_RemoveShort(&t, 1u), SRCMATCH_OK);
-    TU_NE(t.generation, g);
-    g = t.generation;
+    TU_EQ(t.changed, 1u);
+    t.changed = 0u;
 
     TU_EQ(SrcMatch_RemoveShort(&t, 1u), SRCMATCH_ABSENT);
-    TU_EQ(t.generation, g);
-    g = t.generation;
+    TU_EQ(t.changed, 0u);
 
     TU_EQ(SrcMatch_SetShortList(&t, 0, 0), SRCMATCH_OK);
-    TU_NE(t.generation, g);
+    TU_EQ(t.changed, 1u);
 }
 
 TU_TEST(a_copy_carries_the_whole_table)
@@ -308,7 +309,7 @@ TU_TEST(a_copy_carries_the_whole_table)
     TU_EQ(b.enabled, 1);
     TU_EQ(b.shortCount, 5);
     TU_EQ(b.extCount, 2);
-    TU_EQ(b.generation, a.generation);
+    TU_EQ(b.changed, a.changed);
     TU_EQ(SrcMatch_HasShort(&b, 0x0304u), 1);
     TU_EQ(SrcMatch_HasShort(&b, 0x0305u), 0);
 
@@ -360,8 +361,8 @@ int main(void)
                                      an_extended_list_round_trips_in_wire_order},
                                     {"the_radios_copy_holds_the_extended_addresses_in_on_air_order",
                                      the_radios_copy_holds_the_extended_addresses_in_on_air_order},
-                                    {"every_mutation_bumps_the_generation_and_nothing_else_does",
-                                     every_mutation_bumps_the_generation_and_nothing_else_does},
+                                    {"every_mutation_marks_the_table_changed_and_nothing_else_does",
+                                     every_mutation_marks_the_table_changed_and_nothing_else_does},
                                     {"a_copy_carries_the_whole_table", a_copy_carries_the_whole_table},
                                     {"encoding_into_a_stream_that_is_too_small_reports_zero",
                                      encoding_into_a_stream_that_is_too_small_reports_zero}};

@@ -449,6 +449,40 @@ TU_TEST(a_frame_goes_out_on_its_own_channel_and_the_receiver_stays_where_it_was_
     TU_EQ(unhealthyPasses, 0u);
 }
 
+/* A RESET empties the source-match table, and the radio must get the empty table: what it holds
+ * decides the Frame Pending bit of every Ack to a poll. Whatever the table went through before -
+ * here 256 changes, each handed down, so the radio's copy sits at a count that wraps to the reset's. */
+TU_TEST(after_a_reset_the_radio_holds_the_empty_source_match_table)
+{
+    static const uint8_t reset[] = {0x02u};
+    static const uint8_t child[2] = {0x34u, 0x12u};
+    uint8_t on;
+    uint16_t i;
+
+    boot(9u);
+    enableTransmit();
+    request(1u, SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_MAC_SRC_MATCH_SHORT, child, sizeof(child));
+    pass(1u);
+
+    for (i = 0u; i < 255u; ++i)
+    {
+        on = (uint8_t)(i & 1u);
+        request((uint8_t)(1u + i % 15u), SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_MAC_SRC_MATCH_ENABLED, &on, 1u);
+        pass(1u);
+    }
+
+    TU_EQ(fakeRadioSrcMatchShorts, 1u);
+    TU_EQ(fakeRadioSrcMatchEnabled, 0u);
+
+    request(2u, SPINEL_CMD_RESET, 0u, reset, sizeof(reset));
+    pass(1u);
+    pass(1u);
+
+    /* The power-on table: off and empty. */
+    TU_EQ(fakeRadioSrcMatchShorts, 0u);
+    TU_EQ(fakeRadioSrcMatchEnabled, 0u);
+}
+
 /* A link that refuses every write for a while: replies that do not fit are dropped, nothing waits on
  * the link, and it answers again once the link takes writes. */
 TU_TEST(a_link_that_refuses_for_a_while_answers_again)
@@ -486,6 +520,8 @@ int main(void)
         {"a_frame_due_long_after_its_request_is_not_stuck", a_frame_due_long_after_its_request_is_not_stuck},
         {"a_frame_goes_out_on_its_own_channel_and_the_receiver_stays_where_it_was_sent",
          a_frame_goes_out_on_its_own_channel_and_the_receiver_stays_where_it_was_sent},
+        {"after_a_reset_the_radio_holds_the_empty_source_match_table",
+         after_a_reset_the_radio_holds_the_empty_source_match_table},
         {"a_link_that_refuses_for_a_while_answers_again", a_link_that_refuses_for_a_while_answers_again}};
 
     Tu_Run("rcp_app", tests, (int)(sizeof(tests) / sizeof(tests[0])));
