@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  * Copyright (c) 2026 dresden elektronik ingenieurtechnik gmbh */
 /* fake_radio.c — hal/radio.h for a host suite, keeping the contract's one promise the glue's health
- * rests on: every transmission it accepts completes, in Radio_Poll. A frame completes fakeRadioTxMs
- * after it starts; a timed frame starts at its moment on the radio's clock, and one whose moment is
- * already gone completes at once as RADIO_TX_CCA_FAIL. The clock is the suite's millisecond tick. */
+ * rests on: every transmission it accepts completes, in Radio_Poll. Radio_Tx only queues the frame, as
+ * the AT86RF233 and ATmega256RFR2 drivers do, and the next Radio_Poll puts it on the air on whatever
+ * channel the radio holds then (fakeRadioTxChannel). A frame completes fakeRadioTxMs after it starts;
+ * a timed frame starts at its moment on the radio's clock, and one whose moment is already gone
+ * completes at once as RADIO_TX_CCA_FAIL. The clock is the suite's millisecond tick. */
 #include "fakes.h"
 
 #include "hal.h"
@@ -13,14 +15,16 @@ int fakeRadioInitFails;
 uint32_t fakeRadioTxMs = 5u;
 uint32_t fakeRadioTxCount;
 uint32_t fakeRadioLeftOpen;
+uint8_t fakeRadioChannel = RADIO_CHAN_MIN;
+uint8_t fakeRadioTxChannel;
 
 static void (*fakeRxHandler)(const Radio_Frame *frame);
 static void (*fakeTxDoneHandler)(void *token, int status, int framePending);
 static int fakeTxOpen;
+static int fakeTxQueued;
 static void *fakeTxToken;
 static int fakeTxStatus;
 static uint32_t fakeTxDoneAtMs;
-static uint8_t fakeChannel = RADIO_CHAN_MIN;
 
 void Fake_RadioReset(void)
 {
@@ -28,7 +32,9 @@ void Fake_RadioReset(void)
     fakeRadioTxMs = 5u;
     fakeRadioTxCount = 0u;
     fakeRadioLeftOpen = 0u;
+    fakeRadioTxChannel = 0u; /* the channel stays: the glue's shadow of it survives RcpApp_Init too */
     fakeTxOpen = 0;
+    fakeTxQueued = 0;
 }
 
 int Radio_Init(void)
@@ -41,13 +47,13 @@ int Radio_SetChannel(uint8_t channel)
     if (channel < RADIO_CHAN_MIN || channel > RADIO_CHAN_MAX)
         return 0;
 
-    fakeChannel = channel;
+    fakeRadioChannel = channel;
     return 1;
 }
 
 int Radio_GetChannel(uint8_t *channel)
 {
-    *channel = fakeChannel;
+    *channel = fakeRadioChannel;
     return 1;
 }
 
@@ -118,6 +124,7 @@ static int fakeTxStart(void *token, uint32_t startMs, int status)
         return 0;
 
     fakeTxOpen = 1;
+    fakeTxQueued = 1;
     fakeTxToken = token;
     fakeTxStatus = status;
     fakeTxDoneAtMs = startMs + fakeRadioTxMs;
@@ -207,6 +214,12 @@ void Radio_SetTxDoneHandler(void (*fn)(void *token, int status, int framePending
 void Radio_Poll(void)
 {
     fakeRadioLeftOpen = (uint32_t)fakeTxOpen;
+
+    if (fakeTxQueued)
+    {
+        fakeTxQueued = 0;
+        fakeRadioTxChannel = fakeRadioChannel;
+    }
 
     if (!fakeTxOpen || (int32_t)(fakeNowMs - fakeTxDoneAtMs) < 0)
         return;

@@ -181,6 +181,10 @@ typedef struct
 {
     uint8_t phyEnabled;
     uint8_t channel;
+    /* 1 from a PHY_CHAN write until the glue has the radio on it. A write is an instruction even when
+     * it repeats the value: a frame's own channel and rxChannelAfterTx move the radio without touching
+     * the property, and the host's write is what brings it back (docs/protocol.md §7.1). */
+    uint8_t channelWritten;
     int8_t ccaThresholdDbm;
     int8_t txPowerDbm; /* what the host set; Props_TxPowerDbm is what the radio uses */
     int8_t txPowerMaxDbm;

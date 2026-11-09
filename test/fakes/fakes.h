@@ -25,6 +25,8 @@ extern int fakeRadioInitFails;
 extern uint32_t fakeRadioTxMs;   /* how long a transmission takes before its completion */
 extern uint32_t fakeRadioTxCount;
 extern uint32_t fakeRadioLeftOpen; /* a transmission still waiting for its completion */
+extern uint8_t fakeRadioChannel;   /* the channel the radio holds */
+extern uint8_t fakeRadioTxChannel; /* the channel the last frame went out on */
 void Fake_RadioReset(void);
 
 #endif

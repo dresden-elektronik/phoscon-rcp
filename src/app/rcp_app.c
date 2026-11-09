@@ -402,12 +402,20 @@ static void rcpAppApplyRadio(void)
      * and leave these shadows claiming a state the transceiver does not have. The host's properties
      * still change - they are what the dwell restores when it ends. The addresses are not part of
      * that: a dwell measures every frame it can hear, and a scan must not lose the host's PAN or
-     * addresses (docs/protocol.md §10.1). */
+     * addresses (docs/protocol.md §10.1).
+     *
+     * The channel follows the host's PHY_CHAN writes, not the property's value: a frame's own channel
+     * and rxChannelAfterTx move the radio in between, and must stand until the host writes again
+     * (docs/protocol.md §7.1). A write the radio refuses - RAIL during a transmission - stays pending,
+     * and so does one with no shadow to compare (a refused restore left it unknown). */
     if (!Scan_OwnsRadio(&rcpScan) && channel >= RADIO_CHAN_MIN && channel <= RADIO_CHAN_MAX &&
-        channel != rcpRadioChannel)
+        (rcpSession.props.channelWritten || rcpRadioChannel == 0u))
     {
         if (Radio_SetChannel(channel))
+        {
             rcpRadioChannel = channel;
+            rcpSession.props.channelWritten = 0u;
+        }
     }
 
     /* Capped for the channel the radio is on: the board's limit, lower on channel 26. */
@@ -505,18 +513,19 @@ static void rcpAppApplyRadio(void)
     Radio_Poll();
 }
 
-/* The dwell is over: put the transceiver back to what the host's properties ask for, and move the
- * shadows with it, so the next pass is a truthful diff instead of a pass that believes a lie. A host
- * that never wrote PHY_CHAN gets the channel the dwell found, not the dwell's own. */
+/* The dwell is over: put the transceiver back where it was, or where the host asked for meanwhile,
+ * and move the shadows with it, so the next pass is a truthful diff instead of a pass that believes a
+ * lie. The channel is the one the dwell found unless the host wrote PHY_CHAN during the dwell; with no
+ * channel found either, it is the property's. */
 static void rcpAppScanRestore(void)
 {
-    uint8_t want = rcpSession.props.channel;
+    uint8_t want = rcpScanSavedChannel;
     uint8_t filter = rcpAppWantedFilter();
     int arm = rcpAppWantedRx();
     int ok = 1;
 
-    if (want < RADIO_CHAN_MIN || want > RADIO_CHAN_MAX)
-        want = rcpScanSavedChannel;
+    if (rcpSession.props.channelWritten || want < RADIO_CHAN_MIN || want > RADIO_CHAN_MAX)
+        want = rcpSession.props.channel;
 
     if (want >= RADIO_CHAN_MIN && want <= RADIO_CHAN_MAX && want != rcpRadioChannel)
     {
@@ -525,6 +534,9 @@ static void rcpAppScanRestore(void)
         else
             rcpRadioChannel = want;
     }
+
+    if (ok && want == rcpSession.props.channel)
+        rcpSession.props.channelWritten = 0u;
 
     if (filter != (uint8_t)rcpRadioFilter)
     {

@@ -199,6 +199,8 @@ The value is a 2-byte little-endian length, the PSDU, and a trailer of up to 16 
 | n+13 | 4 | `L` | `txDelayBase`: the low half of `RCP_TIMESTAMP` that `txDelay` counts from | `0` |
 | n+17 | 1 | `C` | `rxChannelAfterTx` (`0` = keep); honoured with `TRANSMIT_TIMING` | `0` |
 
+A `txChannel` other than 0 tunes the radio to it for the frame, and the receiver then stays on `rxChannelAfterTx`, or on `txChannel` where that is 0 or not honoured, until the host next writes `PHY_CHAN`. Every such write retunes the radio, even one that repeats the property's value: that is how an OpenThread host brings the radio back after a scan.
+
 The PSDU carries its own FCS, as it does on the receive side; the radio regenerates those two bytes rather than appending them. With the whole trailer, the value is `n + 18`, and bytes beyond it are ignored. A full 127-byte PSDU is therefore a 145-byte value; the session's value path (`RCP_VALUE_MAX`, 160 bytes) carries it whole, and the RX path decodes it (`docs/architecture.md`).
 
 With `TRANSMIT_TIMING`, `txDelayBase + txDelay` is the moment the end of the SFD is at the antenna, on the same clock as `RCP_TIMESTAMP` and the RX timestamp. A timed frame gets one attempt, with a single CCA if `enableCSMACA` is set. A moment already gone completes as `CCA_FAILURE`, the one transmit failure a host's CSL scheduler retries rather than asserts on.

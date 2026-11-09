@@ -386,6 +386,69 @@ TU_TEST(a_frame_due_long_after_its_request_is_not_stuck)
     TU_EQ(lockedPasses, 0u);
 }
 
+/* One transmit request: a beacon request (no Ack asked) on txChannel, then receive on rxAfter. */
+static void scanStep(uint8_t tid, uint8_t txChannel, uint8_t rxAfter)
+{
+    static const uint8_t beaconRequest[] = {0x03u, 0x08u, 0x00u, 0xFFu, 0xFFu, 0xFFu, 0xFFu, 0x07u, 0x00u, 0x00u};
+    uint8_t value[2u + sizeof(beaconRequest) + PROPS_STREAM_TX_TRAILER];
+    uint16_t off = (uint16_t)(2u + sizeof(beaconRequest));
+    uint16_t i;
+
+    for (i = 0u; i < sizeof(value); ++i)
+        value[i] = 0u;
+
+    value[0] = (uint8_t)sizeof(beaconRequest);
+
+    for (i = 0u; i < sizeof(beaconRequest); ++i)
+        value[2u + i] = beaconRequest[i];
+
+    value[2u] = beaconRequest[0];
+    value[off] = txChannel;
+    value[off + 3u] = 1u;          /* CSMA-CA */
+    value[off + 15u] = rxAfter;
+    request(tid, SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_STREAM_RAW, value, (uint16_t)sizeof(value));
+
+    for (i = 0u; i < 20u; ++i)
+        pass(1u);
+}
+
+/* An OpenThread host scans as its RCP protocol has it: the frame names its own channel, the receiver
+ * goes to rxChannelAfterTxDone, and PHY_CHAN is written only when the host's idea of the channel
+ * differs (radio_spinel.cpp: mChannel = the frame's channel after Transmit). The beacon request must go
+ * out on the scan channel and the radio must then listen there, not on PHY_CHAN. */
+TU_TEST(a_frame_goes_out_on_its_own_channel_and_the_receiver_stays_where_it_was_sent)
+{
+    static const uint8_t pan = 15u;
+
+    boot(8u);
+    enableTransmit();
+    request(3u, SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_PHY_CHAN, &pan, 1u);
+    pass(1u);
+    pass(1u);
+    TU_EQ(fakeRadioChannel, 15u);
+
+    scanStep(4u, 11u, 11u);
+    TU_EQ(fakeRadioTxChannel, 11u);
+    TU_EQ(fakeRadioChannel, 11u);
+
+    scanStep(5u, 12u, 12u);
+    TU_EQ(fakeRadioTxChannel, 12u);
+    TU_EQ(fakeRadioChannel, 12u);
+
+    /* The scan is over: the host's channel is 12, not 15, so it writes PHY_CHAN 15 - the value the
+     * property already holds - and the radio must go back. */
+    request(6u, SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_PHY_CHAN, &pan, 1u);
+    pass(1u);
+    pass(1u);
+    TU_EQ(fakeRadioChannel, 15u);
+
+    /* A frame that keeps the channel (txChannel 0) goes out where the radio is. */
+    scanStep(7u, 0u, 0u);
+    TU_EQ(fakeRadioTxChannel, 15u);
+    TU_EQ(fakeRadioChannel, 15u);
+    TU_EQ(unhealthyPasses, 0u);
+}
+
 /* A link that refuses every write for a while: replies that do not fit are dropped, nothing waits on
  * the link, and it answers again once the link takes writes. */
 TU_TEST(a_link_that_refuses_for_a_while_answers_again)
@@ -421,6 +484,8 @@ int main(void)
         {"frames_cut_and_run_together_never_silence_the_link", frames_cut_and_run_together_never_silence_the_link},
         {"any_request_leaves_the_link_answering", any_request_leaves_the_link_answering},
         {"a_frame_due_long_after_its_request_is_not_stuck", a_frame_due_long_after_its_request_is_not_stuck},
+        {"a_frame_goes_out_on_its_own_channel_and_the_receiver_stays_where_it_was_sent",
+         a_frame_goes_out_on_its_own_channel_and_the_receiver_stays_where_it_was_sent},
         {"a_link_that_refuses_for_a_while_answers_again", a_link_that_refuses_for_a_while_answers_again}};
 
     Tu_Run("rcp_app", tests, (int)(sizeof(tests) / sizeof(tests[0])));

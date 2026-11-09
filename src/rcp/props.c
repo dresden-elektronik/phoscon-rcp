@@ -105,6 +105,7 @@ void Props_Init(Props_State *s, const Props_Identity *id)
 
     s->phyEnabled = 0u; /* docs/protocol.md §10 */
     s->channel = 0u;
+    s->channelWritten = 0u;
     s->ccaThresholdDbm = (int8_t)PROPS_CCA_DEFAULT_DBM;
     s->txPowerDbm = 0;
     s->txPowerMaxDbm = (id != 0) ? id->txPowerMaxDbm : (int8_t)PROPS_TX_POWER_NO_CAP;
@@ -584,6 +585,7 @@ uint32_t Props_Set(Props_State *s, uint32_t id, const uint8_t *value, uint16_t l
             }
 
             s->channel = value[0];
+            s->channelWritten = 1u;
             break;
 
         case PROPS_ID_PHY_CCA_THRESHOLD:
