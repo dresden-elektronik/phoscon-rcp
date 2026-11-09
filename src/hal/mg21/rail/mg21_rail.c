@@ -84,7 +84,7 @@ typedef enum
 /* The events this back-end subscribes to; everything else RAIL can raise stays off. */
 #define RAIL_EVENT_MASK                                                                          \
     (RAIL_EVENT_RX_PACKET_RECEIVED | RAIL_EVENT_RX_FIFO_OVERFLOW | RAIL_EVENT_RX_FRAME_ERROR |   \
-     RAIL_EVENT_RX_ADDRESS_FILTERED | RAIL_EVENT_RX_ACK_TIMEOUT |                                \
+     RAIL_EVENT_RX_ADDRESS_FILTERED | RAIL_EVENT_RX_FILTER_PASSED | RAIL_EVENT_RX_ACK_TIMEOUT |  \
      RAIL_EVENT_IEEE802154_DATA_REQUEST_COMMAND | RAIL_EVENT_TX_PACKET_SENT |                    \
      RAIL_EVENT_TX_CHANNEL_BUSY | RAIL_EVENT_TX_BLOCKED | RAIL_EVENT_TX_UNDERFLOW |              \
      RAIL_EVENT_TX_ABORTED | RAIL_EVENT_TXACK_PACKET_SENT | RAIL_EVENT_TXACK_ABORTED |          \
@@ -177,6 +177,7 @@ typedef struct
 
     volatile uint32_t events;
     int calPending; /* RAIL asked for a calibration that has not run yet: main loop only */
+    int ackPaused;  /* RAIL's auto-Ack is paused because the receive ring is full: the radio's vectors only */
 
     int edState;
     int8_t edDbm;
@@ -549,6 +550,19 @@ static void railDataRequest(RAIL_Handle_t handle)
     }
 }
 
+/* A frame that finds the ring full is not acknowledged, so its sender retries (docs/architecture.md §3):
+ * RAIL acknowledges in hardware before the frame reaches railRxPacket, so its auto-Ack is paused while
+ * the ring has no room. Decided once a frame has passed the address filter - before its Ack is - and
+ * exact, because only the main loop frees a slot: room then is room when the frame ends. RAIL is called
+ * only when the answer changes. */
+static void railAckFollowsRoom(RAIL_Handle_t handle)
+{
+    int full = railRxRoom() ? 0 : 1;
+
+    if (full != s_rail.ackPaused && RAIL_PauseRxAutoAck(handle, full ? true : false) == RAIL_STATUS_NO_ERROR)
+        s_rail.ackPaused = full;
+}
+
 static void railEvents(RAIL_Handle_t handle, RAIL_Events_t events)
 {
     if (events & RAIL_EVENT_IEEE802154_DATA_REQUEST_COMMAND)
@@ -568,6 +582,10 @@ static void railEvents(RAIL_Handle_t handle, RAIL_Events_t events)
 
     if (events & RAIL_EVENT_RX_ADDRESS_FILTERED)
         s_rail.counters.rxFiltered++;
+
+    /* After railRxPacket: a completion delivered in the same call takes its slot first. */
+    if (events & RAIL_EVENT_RX_FILTER_PASSED)
+        railAckFollowsRoom(handle);
 
     if (events & RAIL_EVENT_TXACK_PACKET_SENT)
         s_rail.counters.ackSent++;
