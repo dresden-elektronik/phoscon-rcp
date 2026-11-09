@@ -7,6 +7,9 @@
 #include "srcmatch.h"
 #include "tu.h"
 #include "u_bstream.h"
+#ifdef RCP_UART_BITRATE
+#include "usart_baud.h"
+#endif
 
 #define BUF 64
 
@@ -56,6 +59,7 @@ static void initIdentity(Props_Identity *id)
     id->txPowerMaxDbm = 127;    /* no cap: the cap has its own tests */
     id->txPowerMaxCh26Dbm = 127;
     id->hwAddr = factoryEui64;  /* the factory address a real board reports */
+    id->linkBitrate = 115200u;  /* a UART board's rate at power-on */
 }
 
 TU_TEST(mac_property_ids_match_upstream_spinel)
@@ -1134,6 +1138,125 @@ TU_TEST(a_reset_clears_the_source_match_table)
     TU_EQ(getValue(&s, PROPS_ID_MAC_SRC_MATCH_SHORT), 0u);
 }
 
+#ifdef RCP_UART_BITRATE
+static uint32_t le32(const uint8_t *b)
+{
+    return (uint32_t)b[0] | ((uint32_t)b[1] << 8) | ((uint32_t)b[2] << 16) | ((uint32_t)b[3] << 24);
+}
+
+static uint32_t setBitrate(Props_State *s, uint32_t bps)
+{
+    uint8_t v[4];
+
+    v[0] = (uint8_t)bps;
+    v[1] = (uint8_t)(bps >> 8);
+    v[2] = (uint8_t)(bps >> 16);
+    v[3] = (uint8_t)(bps >> 24);
+    return Props_Set(s, PROPS_ID_UART_BITRATE, v, 4u);
+}
+
+TU_TEST(the_uart_bitrate_is_upstreams_property)
+{
+    const Props_Desc *d = Props_Find(PROPS_ID_UART_BITRATE);
+
+    TU_EQ(PROPS_ID_UART_BITRATE, 0x0100u); /* SPINEL_PROP_INTERFACE__BEGIN + 0, spinel.h:4328 */
+    TU_CHECK(d != 0);
+    TU_EQ(d->type, PROPS_T_U32);
+    TU_EQ(d->access, PROPS_ACC_READ | PROPS_ACC_WRITE);
+}
+
+/* A rate from the list is stored and read back as 'L'; anything else leaves the rate as it was, because
+ * the link follows an accepted rate after the answer and a host cannot follow a rate it was refused. */
+TU_TEST(the_uart_bitrate_takes_a_listed_rate_and_nothing_else)
+{
+    static const uint32_t refused[] = {0u, 9600u, 57600u, 115201u, 2000000u, 3000000u};
+    static const uint8_t shortValue[3] = {0x40u, 0x42u, 0x0Fu};
+    Props_Identity id;
+    Props_State s;
+    const uint32_t *rates;
+    uint16_t count;
+    uint16_t i;
+
+    initIdentity(&id);
+    Props_Init(&s, &id);
+    TU_EQ(getValue(&s, PROPS_ID_UART_BITRATE), 4u);
+    TU_EQ(le32(buf), 115200u);
+
+    rates = Props_UartBitrates(&count);
+    TU_EQ(rates[0], 115200u);
+
+    for (i = 0u; i < count; ++i)
+    {
+        TU_EQ(setBitrate(&s, rates[i]), SPINEL_STATUS_OK);
+        TU_EQ(getValue(&s, PROPS_ID_UART_BITRATE), 4u);
+        TU_EQ(le32(buf), rates[i]);
+    }
+
+    TU_EQ(setBitrate(&s, 1000000u), SPINEL_STATUS_OK);
+
+    for (i = 0u; i < (uint16_t)(sizeof(refused) / sizeof(refused[0])); ++i)
+    {
+        TU_EQ(setBitrate(&s, refused[i]), SPINEL_STATUS_INVALID_ARG);
+        (void)getValue(&s, PROPS_ID_UART_BITRATE);
+        TU_EQ(le32(buf), 1000000u);
+    }
+
+    TU_EQ(Props_Set(&s, PROPS_ID_UART_BITRATE, shortValue, 3u), SPINEL_STATUS_INVALID_ARG);
+    (void)getValue(&s, PROPS_ID_UART_BITRATE);
+    TU_EQ(le32(buf), 1000000u);
+}
+
+/* Unlike upstream's, the rate does not outlive a RESET: power-on state is the board's rate. */
+TU_TEST(a_reset_and_a_revert_return_to_the_boards_rate)
+{
+    Props_Identity id;
+    Props_State s;
+
+    initIdentity(&id);
+    Props_Init(&s, &id);
+    TU_EQ(setBitrate(&s, 921600u), SPINEL_STATUS_OK);
+    Props_Init(&s, &id);
+    (void)getValue(&s, PROPS_ID_UART_BITRATE);
+    TU_EQ(le32(buf), 115200u);
+
+    TU_EQ(setBitrate(&s, 460800u), SPINEL_STATUS_OK);
+    Props_UartBitrateRevert(&s);
+    (void)getValue(&s, PROPS_ID_UART_BITRATE);
+    TU_EQ(le32(buf), 115200u);
+}
+
+/* Every listed rate is one the ConBee III's USART programs within 1 % from its 38.4 MHz clock at the
+ * driver's 16x oversampling (hal/mg21/mg21_uart.c): an accepted rate the board then misses by more
+ * would cut the host off after the answer. */
+TU_TEST(every_listed_rate_runs_on_the_conbee_iii)
+{
+    const uint32_t *rates;
+    uint16_t count;
+    uint16_t i;
+
+    rates = Props_UartBitrates(&count);
+
+    for (i = 0u; i < count; ++i)
+    {
+        uint32_t clkdiv = 0u;
+        uint32_t got;
+        uint32_t diff;
+
+        TU_CHECK(UsartBaud_ClkDiv(38400000u, rates[i], USART_BAUD_OVS_16, &clkdiv));
+        got = UsartBaud_RateHz(38400000u, USART_BAUD_OVS_16, clkdiv);
+        diff = got > rates[i] ? got - rates[i] : rates[i] - got;
+        TU_NOTE("achieved rate", (long)got);
+        TU_CHECK(diff * 100u <= rates[i]);
+    }
+}
+#else
+/* A board without a rate to change has no such property, as upstream's RCP over SPI or USB. */
+TU_TEST(a_link_without_a_rate_has_no_uart_bitrate)
+{
+    TU_CHECK(Props_Find(0x0100u) == 0);
+}
+#endif
+
 int main(void)
 {
     static const Tu_Test tests[] = {
@@ -1186,7 +1309,17 @@ int main(void)
          scan_mask_is_a_channel_list_not_a_count_of_channels},
         {"scan_period_is_stored_as_written", scan_period_is_stored_as_written},
         {"scan_state_answers_the_ways_an_rcp_does", scan_state_answers_the_ways_an_rcp_does},
-        {"the_scan_result_id_is_not_a_property", the_scan_result_id_is_not_a_property}};
+        {"the_scan_result_id_is_not_a_property", the_scan_result_id_is_not_a_property},
+#ifdef RCP_UART_BITRATE
+        {"the_uart_bitrate_is_upstreams_property", the_uart_bitrate_is_upstreams_property},
+        {"the_uart_bitrate_takes_a_listed_rate_and_nothing_else",
+         the_uart_bitrate_takes_a_listed_rate_and_nothing_else},
+        {"a_reset_and_a_revert_return_to_the_boards_rate", a_reset_and_a_revert_return_to_the_boards_rate},
+        {"every_listed_rate_runs_on_the_conbee_iii", every_listed_rate_runs_on_the_conbee_iii},
+#else
+        {"a_link_without_a_rate_has_no_uart_bitrate", a_link_without_a_rate_has_no_uart_bitrate},
+#endif
+    };
 
     Tu_Run("props", tests, (int)(sizeof(tests) / sizeof(tests[0])));
     return 0; /* Tu_Run never returns */

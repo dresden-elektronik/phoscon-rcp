@@ -59,6 +59,7 @@ static const Board_Descriptor fakeBoard = {
     .rxSensitivityDbm = -100,
     .txPowerMaxDbm = 10,
     .txPowerMaxCh26Dbm = 10,
+    .linkBaud = 115200u,
 };
 
 const Board_Descriptor *Board_Get(void)

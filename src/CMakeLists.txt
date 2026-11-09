@@ -280,6 +280,12 @@ if(DS_THREAD AND DS_MODE STREQUAL "rcp")
     COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns")
 endif()
 
+# A host link whose line rate the host may change (board.cmake sets DS_UART_BITRATE): the UART_BITRATE
+# property in the rcp image, and the driver's half of it (hal/uart_drv.h).
+if(DS_UART_BITRATE AND DS_MODE STREQUAL "rcp")
+  target_compile_definitions(${DS_PRODUCT} PRIVATE RCP_UART_BITRATE=1 DS_LINK_BITRATE=1)
+endif()
+
 # Main-loop instrumentation (app/loop_diag.c, loop_diag.h). Off in the shipped image; a
 # diagnostic build passes -DDS_LOOP_DIAG=ON and the loop then publishes its iterations per
 # second, a record for any phase slower than 20 ms, and the NVRAM row-patch rate. The

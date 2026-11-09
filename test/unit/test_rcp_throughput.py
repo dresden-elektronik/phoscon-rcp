@@ -71,6 +71,11 @@ def estimate_cases():
     check(not tp.Link("ssh://pi/dev/ttyAMA0@57600").bridged, "a UART on a Pi's header has no bridge")
     fast = tp.estimate(tp.psdu_for(1, 127, 0xBEE5), tp.trailer(12, 3, True), b, b, True)
     check(fast["limit"].endswith("the air"), "CDC to CDC is the air", fast["limit"])
+    raised = tp.Link("/dev/z@115200", 1)
+    raised.rate(1000000)
+    full = tp.estimate(tp.psdu_for(1, 127, 0xBEE5), tp.trailer(12, 3, True), b, raised, True)
+    check(raised.baud == 1000000 and abs(raised.byte_us - 10.0) < 1e-9 and full["limit"].endswith("the air"),
+          "a receiver moved to 1 000 000 counts 10 us a byte and keeps up with the air", full["limit"])
 
 
 class FakePair:

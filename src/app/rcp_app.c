@@ -55,6 +55,20 @@ static uint8_t rcpTxScratch[RCP_APP_ENC_MAX];
 static uint32_t rcpTxDropped;
 static uint32_t rcpTxSent;
 
+#ifdef RCP_UART_BITRATE
+/* The link's rate (UART_BITRATE, docs/protocol.md §10). The answer to the request that changes it is the
+ * last frame at the old rate: rcpLinkMark counts the queued octets still to leave before the switch, and
+ * nothing past them goes until the link has moved. A raised rate that hears only framing errors since the
+ * last frame falls back to the board's own, which is how a host that starts over, and the flasher, reach
+ * the board again. */
+#define RCP_LINK_FALLBACK_ERRORS 8u
+static uint32_t rcpLinkBitrate; /* what the link runs at */
+static uint32_t rcpLinkTarget;  /* where it goes, while rcpLinkPending */
+static int rcpLinkPending;
+static uint16_t rcpLinkMark;
+static uint16_t rcpLinkErrorsAtFrame;
+#endif
+
 /* ---- the radio (hal/radio.h) ------------------------------------------ */
 /* The extended address the radio's filter view holds, compared the way the sync below decides it: one
  * octet at a time, because a -nostdlib image has no memcmp (docs/coding-rules.md §1). */
@@ -764,6 +778,63 @@ static void rcpAppApplyScan(void)
     }
 }
 
+#ifdef RCP_UART_BITRATE
+/* After every frame: a rate the host asked for (or a RESET's return to the board's) is due once what is
+ * queued now, its answer last, has left. */
+static void rcpAppLinkNote(void)
+{
+    uint32_t want = rcpSession.props.uartBitrate;
+
+    rcpLinkErrorsAtFrame = COM_RxFrameErrors();
+
+    if (want == (rcpLinkPending ? rcpLinkTarget : rcpLinkBitrate))
+        return;
+
+    rcpLinkTarget = want;
+    rcpLinkMark = rcpTxCount;
+    rcpLinkPending = (want != rcpLinkBitrate) ? 1 : 0;
+}
+
+/* Every pass: fall back from a rate the host no longer talks at, and move the link once the octets
+ * before the mark are out and the line is idle. 1 while the ring must wait for the switch. */
+static int rcpAppLinkHolds(void)
+{
+    int rc;
+
+    if (!rcpLinkPending && rcpLinkBitrate != rcpSession.props.uartBitrateDefault &&
+        (uint16_t)(COM_RxFrameErrors() - rcpLinkErrorsAtFrame) >= RCP_LINK_FALLBACK_ERRORS)
+    {
+        DBG(DBG_COMP_APP, DBG_APP_RSN_LINK_FALLBACK);
+        Props_UartBitrateRevert(&rcpSession.props);
+        rcpLinkTarget = rcpSession.props.uartBitrate;
+        rcpLinkMark = 0u;
+        rcpLinkPending = 1;
+    }
+
+    if (!rcpLinkPending || rcpLinkMark != 0u)
+        return 0;
+
+    rc = COM_SetBitrate(rcpLinkTarget);
+
+    if (rc == 0)
+        return 1;
+
+    if (rc > 0)
+    {
+        rcpLinkBitrate = rcpLinkTarget;
+        Debug_Emit(DBG_COMP_APP, (uint16_t)(rcpLinkBitrate / 100u), DBG_APP_RSN_LINK_RATE);
+    }
+    else
+        rcpSession.props.uartBitrate = rcpLinkBitrate; /* a rate in the list this link cannot run */
+
+    /* Whatever the decoder holds is half a frame at the other rate. */
+    Hdlc_RxInit(&rcpHdlc);
+    rcpLinkErrorsAtFrame = COM_RxFrameErrors();
+    rcpLinkPending = 0;
+    return 0;
+}
+#endif
+
 void RcpApp_Init(void)
 {
     static uint8_t factoryEui64[8];
@@ -773,6 +844,7 @@ void RcpApp_Init(void)
     id.rxSensitivityDbm = Board_Get()->rxSensitivityDbm; /* per silicon, docs/protocol.md §10 */
     id.txPowerMaxDbm = Board_Get()->txPowerMaxDbm;       /* the board's caps on PHY_TX_POWER */
     id.txPowerMaxCh26Dbm = Board_Get()->txPowerMaxCh26Dbm;
+    id.linkBitrate = Board_Get()->linkBaud;
     /* The session keeps the pointer, not the bytes, so this is static. */
     id.hwAddr = Nvram_FactoryEui64(factoryEui64) ? factoryEui64 : 0;
     Rcp_Init(&rcpSession, &id);
@@ -793,6 +865,13 @@ void RcpApp_Init(void)
     rcpTxCount = 0u;
     rcpTxDropped = 0u;
     rcpTxSent = 0u;
+#ifdef RCP_UART_BITRATE
+    rcpLinkBitrate = Board_Get()->linkBaud;
+    rcpLinkTarget = rcpLinkBitrate;
+    rcpLinkPending = 0;
+    rcpLinkMark = 0u;
+    rcpLinkErrorsAtFrame = COM_RxFrameErrors();
+#endif
     Scan_Init(&rcpScan);
     rcpScanSavedChannel = 0u;
     rcpScanSavedFilter = -1;
@@ -943,6 +1022,9 @@ void RcpApp_Poll(void)
 #endif
             if (Rcp_Feed(&rcpSession, rcpHdlc.buf, rcpHdlc.len, &out) > 0u)
                 rcpAppQueueReply(reply, (uint16_t)(sizeof(reply) - U_bstream_remaining(&out)));
+#ifdef RCP_UART_BITRATE
+            rcpAppLinkNote();
+#endif
         }
         else if (r == HDLC_RX_ERROR)
         {
@@ -960,6 +1042,11 @@ void RcpApp_Poll(void)
 
     rcpAppEmitDebug();
 
+#ifdef RCP_UART_BITRATE
+    if (rcpAppLinkHolds())
+        return;
+#endif
+
     if (rcpTxCount > 0u)
     {
         /* One packet per pass, never crossing the ring wrap; a refused arm is retried
@@ -976,11 +1063,20 @@ void RcpApp_Poll(void)
         if (n == COM_TX_MAX && rcpTxCount == COM_TX_MAX)
             n = COM_TX_MAX - 1u;
 
+#ifdef RCP_UART_BITRATE
+        if (rcpLinkPending && n > rcpLinkMark)
+            n = rcpLinkMark;
+#endif
+
         if (COM_TxSend(&rcpTxRing[rcpTxTail], n))
         {
             rcpTxTail = (uint16_t)((rcpTxTail + n) % RCP_APP_TX_RING);
             rcpTxCount = (uint16_t)(rcpTxCount - n);
             rcpTxSent++;
+#ifdef RCP_UART_BITRATE
+            if (rcpLinkPending)
+                rcpLinkMark = (uint16_t)(rcpLinkMark - n);
+#endif
         }
     }
 }

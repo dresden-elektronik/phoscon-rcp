@@ -80,6 +80,10 @@ target_compile_options(test_props PRIVATE -Wall -Wextra -std=c99)
 target_compile_definitions(test_props PRIVATE RCP_THREAD=1 RCP_TX_TIMING=1 RCP_CSL_ACCURACY_PPM=40 RCP_CSL_UNCERTAINTY_10US=20)
 target_include_directories(test_props PRIVATE ${CMAKE_SOURCE_DIR}/src/lib/aes)
 target_sources(test_props PRIVATE ${CMAKE_SOURCE_DIR}/src/rcp/mac_sec.c ${CMAKE_SOURCE_DIR}/src/lib/aes/aes_modes.c ${CMAKE_SOURCE_DIR}/src/lib/aes/aes_table.c)
+# The ConBee III's table: a link whose rate the host may change, checked against its USART divisor.
+target_compile_definitions(test_props PRIVATE RCP_UART_BITRATE=1)
+target_include_directories(test_props PRIVATE ${CMAKE_SOURCE_DIR}/src/hal/mg21)
+target_sources(test_props PRIVATE ${CMAKE_SOURCE_DIR}/src/hal/mg21/usart_baud.c)
 add_test(NAME props COMMAND test_props)
 
 # The same table on a board without Thread support (cbrb1, rb2): its wire surface must not move.
@@ -561,5 +565,6 @@ target_include_directories(test_rcp_app PRIVATE
   ${CMAKE_SOURCE_DIR}/src/lib/u_sstream
 )
 target_compile_options(test_rcp_app PRIVATE -Wall -Wextra -std=c99)
-target_compile_definitions(test_rcp_app PRIVATE RCP_THREAD=1 RCP_TX_TIMING=1 RCP_CSL_ACCURACY_PPM=40 RCP_CSL_UNCERTAINTY_10US=20)
+target_compile_definitions(test_rcp_app PRIVATE RCP_THREAD=1 RCP_TX_TIMING=1 RCP_CSL_ACCURACY_PPM=40 RCP_CSL_UNCERTAINTY_10US=20
+  RCP_UART_BITRATE=1)
 add_test(NAME rcp_app COMMAND test_rcp_app)

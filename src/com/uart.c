@@ -52,3 +52,15 @@ uint16_t COM_NotifyPoll(void)
 {
     return 0u;
 }
+
+#ifdef DS_LINK_BITRATE
+int COM_SetBitrate(uint32_t bps)
+{
+    return Uart_SetBaud(bps);
+}
+
+uint16_t COM_RxFrameErrors(void)
+{
+    return Uart_RxFrameErrors();
+}
+#endif

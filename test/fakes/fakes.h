@@ -18,6 +18,11 @@ extern int fakeIrqUnbalanced; /* an unlock without its lock */
 extern uint8_t fakeLinkOut[FAKE_LINK_OUT_MAX];
 extern uint32_t fakeLinkOutLen;
 extern int fakeLinkRefuse; /* 1: COM_TxSend refuses, as a link with a write still in flight does */
+extern uint32_t fakeLinkBitrate;     /* the rate COM_SetBitrate last moved the link to */
+extern uint32_t fakeLinkSwitchAt;    /* fakeLinkOutLen when it did */
+extern int fakeLinkBusy;             /* 1: COM_SetBitrate answers 0, a chunk still on the line */
+extern int fakeLinkRateRefused;      /* 1: COM_SetBitrate answers -1 */
+extern uint16_t fakeLinkFrameErrors; /* what COM_RxFrameErrors reports */
 void Fake_LinkReset(void);
 
 /* ---- the radio ---- */

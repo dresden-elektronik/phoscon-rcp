@@ -39,6 +39,10 @@
  * uncertainty in units of 10 us (spinel.h:4749, :4757). */
 #define PROPS_ID_RCP_CSL_ACCURACY 0x0804u
 #define PROPS_ID_RCP_CSL_UNCERTAINTY 0x0805u
+/* The host link's line rate: SPINEL_PROP_INTERFACE__BEGIN (0x100) + 0, SPINEL_PROP_UART_BITRATE
+ * (spinel.h:4328), a little-endian u32. Only a board whose link is a UART that can change its rate has
+ * it (RCP_UART_BITRATE); unlike upstream's, a RESET puts the rate back (docs/protocol.md §10). */
+#define PROPS_ID_UART_BITRATE 0x0100u
 #define PROPS_ID_PHY_ENABLED 0x0020u
 /* The factory-assigned IEEE EUI-64, upstream's SPINEL_PROP_HWADDR, distinct from
  * MAC_15_4_LADDR: this is what the module was born with, MSB first
@@ -155,7 +159,8 @@ enum
     PROPS_T_ADDR_LIST_SHORT,
     PROPS_T_ADDR_LIST_EXT,
     PROPS_T_MAC_SEC, /* decoded by rcp/mac_sec.c */
-    PROPS_T_U64      /* 'X' */
+    PROPS_T_U64,     /* 'X' */
+    PROPS_T_U32      /* 'L' */
 };
 
 #define PROPS_ACC_READ 1u
@@ -175,6 +180,7 @@ typedef struct
     int8_t rxSensitivityDbm; /* per silicon: AT86RF233 = -96 (docs/protocol.md §10) */
     int8_t txPowerMaxDbm;     /* the board's transmit cap at the transceiver, channels 11..25 */
     int8_t txPowerMaxCh26Dbm; /* and on channel 26 (docs/protocol.md §10) */
+    uint32_t linkBitrate;     /* the host link's rate at power-on; 0 for a link without one */
 } Props_Identity;
 
 typedef struct
@@ -209,6 +215,12 @@ typedef struct
     /* The source-match table: state like any other property, read by the radio through
      * Props_SrcMatch (coding-rules.md §4). */
     SrcMatch_Table srcMatch;
+#ifdef RCP_UART_BITRATE
+    /* UART_BITRATE: the rate the host asked for, which the glue moves the link to once the answer is
+     * out, and the board's own, which a RESET and the glue's fallback return to. */
+    uint32_t uartBitrate;
+    uint32_t uartBitrateDefault;
+#endif
     const char *ncpVersion;
     const uint8_t *hwAddr;
 } Props_State;
@@ -242,5 +254,14 @@ int Props_TakeScanStart(Props_State *s, uint32_t *mask, uint16_t *dwellMs);
 
 /* Mirror the scan machine's state into what GET 0x30 reports, the way the RSSI mirror works. */
 void Props_SetScanState(Props_State *s, uint8_t state);
+
+#ifdef RCP_UART_BITRATE
+/* The rates a SET UART_BITRATE accepts, ascending, the board's own first. */
+const uint32_t *Props_UartBitrates(uint16_t *count);
+
+/* Back to the board's rate without a request: the glue's answer to a host it no longer hears
+ * (docs/protocol.md §10). */
+void Props_UartBitrateRevert(Props_State *s);
+#endif
 
 #endif

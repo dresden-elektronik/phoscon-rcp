@@ -9,11 +9,36 @@
 uint8_t fakeLinkOut[FAKE_LINK_OUT_MAX];
 uint32_t fakeLinkOutLen;
 int fakeLinkRefuse;
+uint32_t fakeLinkBitrate;
+uint32_t fakeLinkSwitchAt;
+int fakeLinkBusy;
+int fakeLinkRateRefused;
+uint16_t fakeLinkFrameErrors;
 
+/* The capture only: the link's rate and its counters are the board's, and a suite that clears the
+ * capture mid-run keeps them. */
 void Fake_LinkReset(void)
 {
     fakeLinkOutLen = 0u;
     fakeLinkRefuse = 0;
+}
+
+int COM_SetBitrate(uint32_t bps)
+{
+    if (fakeLinkRateRefused)
+        return -1;
+
+    if (fakeLinkBusy)
+        return 0;
+
+    fakeLinkBitrate = bps;
+    fakeLinkSwitchAt = fakeLinkOutLen;
+    return 1;
+}
+
+uint16_t COM_RxFrameErrors(void)
+{
+    return fakeLinkFrameErrors;
 }
 
 int COM_TxSend(const uint8_t *buf, uint16_t len)

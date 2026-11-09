@@ -24,12 +24,16 @@ the frames this tool sends, escapes included, at 10 bits a byte on a UART; a Con
 counts as USB full-speed bulk, 19 packets of 64 bytes a millisecond. A local `path@baud` port is taken
 to be behind an FTDI bridge (the ConBee III, the ConBee I) with the timer at --latency-timer-ms, 16 ms
 unless given; on macOS the tool sets that timer for the run and puts 16 back afterwards.
+With --bitrate a local UART RCP is moved to that line rate after it answers at its own: the tool sets
+UART_BITRATE, takes the answer at the old rate and follows it (docs/protocol.md §10), and the estimate
+counts the new rate; the closing RESET returns the RCP to its own rate.
 Measured beside it: the completion latency's percentiles, B's radio cadence from its receive stamps,
 and how far B's host fell behind its radio - a lag that grows is notifications queueing on B's link.
 
   python3 tools/rcp_throughput.py --a <cb2-port> --b <cb3-port>@115200 --channel 12
   python3 tools/rcp_throughput.py --a <cb2-port> --b <cb1-port>@57600 --channel 12 --both
   python3 tools/rcp_throughput.py --a <cb2-port> --b <cb1-port>@57600 --estimate
+  python3 tools/rcp_throughput.py --a <cb2-port> --b <cb3-port>@115200 --channel 12 --both --bitrate 1000000
 
 Transmits for --seconds per size and direction without a pause: a quiet channel and a private PAN.
 """
@@ -48,6 +52,7 @@ import rcp_pair  # noqa: E402
 import spinel_console as sc  # noqa: E402
 
 P_LAST_STATUS, P_PROTOCOL_VERSION, P_NCP_VERSION, P_STREAM_RAW = 0x00, 0x01, 0x02, 0x71
+P_UART_BITRATE = 0x100
 CMD_RESET = 1
 OK, FAILURE, BUSY, NO_ACK, CCA_FAILURE = 0, 1, 12, 17, 18
 STATUS_NAMES = {OK: "OK", FAILURE: "FAILURE", BUSY: "BUSY", NO_ACK: "NO_ACK", CCA_FAILURE: "CCA_FAILURE"}
@@ -83,6 +88,11 @@ class Link:
         self.byte_us = 10e6 / self.baud if self.baud else 1000.0 / (19 * 64)
         self.bridged = bool(sep) and not spec.startswith("ssh://")
         self.timer_us = (FTDI_TIMER_MS if timer_ms is None else timer_ms) * 1000.0 if self.bridged else 0.0
+
+    def rate(self, baud):
+        """The line rate the link was moved to."""
+        self.baud = baud
+        self.byte_us = 10e6 / baud
 
     def __str__(self):
         if not self.baud:
@@ -318,6 +328,25 @@ def reset(node):
     node.poll(0.6)
 
 
+def raise_rate(node, link, baud, timer_ms):
+    """UART_BITRATE: the answer arrives at the old rate, then both ends move (docs/protocol.md §10). Nothing
+    is sent between the request and its answer."""
+    node.drain()
+    tid = node.request(sc.CMD_PROP_VALUE_SET, P_UART_BITRATE, baud.to_bytes(4, "little"))
+    deadline = time.time() + 1.0
+    while time.time() < deadline and P_UART_BITRATE not in node.values and tid not in node.by_tid:
+        node.poll(0.02)
+    got = node.values.get(P_UART_BITRATE)
+    if got is None or int.from_bytes(got[:4], "little") != baud:
+        print(f"{node.name}: UART_BITRATE {baud} not taken: {node.by_tid.get(tid, b'no answer').hex() or 'no answer'}")
+        return False
+    rcp_pair.set_line_rate(node.ser.fileno(), baud)
+    if timer_ms is not None:
+        latency_timer(node, timer_ms)
+    link.rate(baud)
+    return identify(node) is not None
+
+
 def identify(node):
     node.drain()
     for _ in range(10):
@@ -358,6 +387,8 @@ def main(argv=None):
     ap.add_argument("--both", action="store_true", help="then B sends to A")
     ap.add_argument("--latency-timer-ms", type=int, help=f"the FTDI bridges' latency timer, 1..255; {FTDI_TIMER_MS} unless"
                     " given, and set for the run on macOS")
+    ap.add_argument("--bitrate", type=int, help="move each local UART RCP to this line rate for the run, with"
+                    " UART_BITRATE")
     ap.add_argument("--estimate", action="store_true", help="print the estimate only; no port is opened")
     args = ap.parse_args(argv)
 
@@ -367,7 +398,12 @@ def main(argv=None):
     if args.latency_timer_ms is not None and not 1 <= args.latency_timer_ms <= 255:
         ap.error("--latency-timer-ms: 1..255")
     links = {"A": Link(args.a, args.latency_timer_ms), "B": Link(args.b, args.latency_timer_ms)}
+    if args.bitrate is not None and not any(link.bridged for link in links.values()):
+        ap.error("--bitrate: neither port is a local UART RCP (path@baud)")
     if args.estimate:
+        for link in links.values():
+            if args.bitrate is not None and link.bridged:
+                link.rate(args.bitrate)
         csma = not args.no_csma
         pairs = (("A", "B"), ("B", "A")) if args.both else (("A", "B"),)
         for s, d in pairs:
@@ -387,6 +423,8 @@ def main(argv=None):
 
     a, b = rcp_matrix.open_node("A", args.a), rcp_matrix.open_node("B", args.b)
     timed = [n for n in (a, b) if links[n.name].bridged and args.latency_timer_ms is not None]
+    own = {n.name: links[n.name].baud for n in (a, b)}
+    raised = []
     fails = 0
     try:
         for node in timed:
@@ -398,6 +436,14 @@ def main(argv=None):
             fails += ident is None
         if fails:
             return 1
+        for node in (a, b):
+            if args.bitrate is not None and links[node.name].bridged:
+                raised.append(node)
+                ok = raise_rate(node, links[node.name], args.bitrate, args.latency_timer_ms)
+                print(f"{node.name}: {'now at' if ok else 'NOT at'} {args.bitrate} baud")
+                fails += not ok
+        if fails:
+            return 1
         run_id = int(time.time()) & 0x7F
         fails += direction(a, b, links, args, sizes, run_id)
         if args.both:
@@ -406,7 +452,10 @@ def main(argv=None):
         for node in timed:
             latency_timer(node, FTDI_TIMER_MS)
         for node in (a, b):
+            # The RESET's answer comes at the raised rate; then the RCP is back at its own.
             reset(node)
+            if node in raised:
+                rcp_pair.set_line_rate(node.ser.fileno(), own[node.name])
             node.close()
     return 1 if fails else 0
 

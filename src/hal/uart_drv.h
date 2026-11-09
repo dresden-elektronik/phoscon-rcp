@@ -29,6 +29,10 @@
  *   - Uart_Witnesses publishes the driver's bring-up read-backs, including its vector count
  *     and its overrun and framing-error counters, which the watchdog compares against what
  *     the adapter counted (docs/testing.md §2).
+ *   - A driver whose board changes the line rate at run time (DS_LINK_BITRATE) adds two:
+ *     Uart_SetBaud moves the link once the line is idle (1), refuses while a chunk is still
+ *     on the wire (0) or for a rate it cannot program (-1), and Uart_RxFrameErrors reports
+ *     its framing-error count. Main-loop only.
  *
  * Everything a silicon keeps to itself — its vector body, its pad routing, its buffer
  * sizes — stays out of this header, in the driver's own <silicon>_uart.h.
@@ -48,5 +52,7 @@ void Uart_SetRxHandler(Uart_DataInFn handler);
 int Uart_TxSend(const uint8_t *bytes, uint16_t len);
 uint16_t Uart_TxPoll(void);
 void Uart_Witnesses(void);
+int Uart_SetBaud(uint32_t baud);
+uint16_t Uart_RxFrameErrors(void);
 
 #endif /* HAL_UART_DRV_H */

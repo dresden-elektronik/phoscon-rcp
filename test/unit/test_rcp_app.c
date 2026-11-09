@@ -53,6 +53,11 @@ static void boot(uint32_t seed)
     linkCursor = 0u;
     fakeNowMs = 1000u;
     Fake_LinkReset();
+    fakeLinkBitrate = 115200u;
+    fakeLinkSwitchAt = 0u;
+    fakeLinkBusy = 0;
+    fakeLinkRateRefused = 0;
+    fakeLinkFrameErrors = 0u;
     Fake_RadioReset();
     App_Boot();
 
@@ -616,6 +621,155 @@ TU_TEST(a_radio_step_due_without_an_interrupt_asks_for_the_next_pass)
     TU_EQ(App_PollAgain(), 0);
 }
 
+/* ---- the link's rate (UART_BITRATE) ---- */
+
+static void setLinkRate(uint8_t tid, uint32_t bps)
+{
+    uint8_t v[4];
+
+    v[0] = (uint8_t)bps;
+    v[1] = (uint8_t)(bps >> 8);
+    v[2] = (uint8_t)(bps >> 16);
+    v[3] = (uint8_t)(bps >> 24);
+    request(tid, SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_UART_BITRATE, v, 4u);
+}
+
+/* The capture offset just past the last frame with this TID and command, 0 if there is none; a rate
+ * answer's value lands in *bps. */
+static uint32_t frameEnd(uint8_t tid, uint8_t cmd, uint32_t *bps)
+{
+    Hdlc_Rx rx;
+    uint32_t end = 0u;
+    uint32_t i;
+
+    Hdlc_RxInit(&rx);
+
+    for (i = 0u; i < fakeLinkOutLen; ++i)
+    {
+        if (Hdlc_RxByte(&rx, fakeLinkOut[i]) == HDLC_RX_FRAME && rx.len >= 2u &&
+            rx.buf[0] == (uint8_t)(0x80u | tid) && rx.buf[1] == cmd)
+        {
+            end = i + 1u;
+
+            /* UART_BITRATE packs as 80 02, then the 'L' value. */
+            if (bps != 0 && rx.len >= 8u && rx.buf[2] == 0x80u && rx.buf[3] == 0x02u)
+                *bps = (uint32_t)rx.buf[4] | ((uint32_t)rx.buf[5] << 8) | ((uint32_t)rx.buf[6] << 16) |
+                       ((uint32_t)rx.buf[7] << 24);
+        }
+    }
+
+    return end;
+}
+
+static void passes(uint16_t n)
+{
+    while (n-- > 0u)
+        pass(1u);
+}
+
+/* The answer is the last frame at the old rate: until the line is idle nothing after it leaves, not even
+ * the answer to a request the host sent behind the SET, and the link moves exactly where the answer ends. */
+TU_TEST(a_new_rate_follows_the_answer_that_set_it)
+{
+    uint32_t bps = 0u;
+    uint32_t end;
+
+    boot(20u);
+    Fake_LinkReset();
+    setLinkRate(5u, 1000000u);
+    request(6u, SPINEL_CMD_PROP_VALUE_GET, PROPS_ID_NCP_VERSION, 0, 0u);
+    fakeLinkBusy = 1;
+    passes(8u);
+
+    end = frameEnd(5u, SPINEL_CMD_PROP_VALUE_IS, &bps);
+    TU_CHECK(end != 0u);
+    TU_EQ(bps, 1000000u);
+    TU_EQ(fakeLinkOutLen, end);
+    TU_EQ(fakeLinkBitrate, 115200u);
+
+    fakeLinkBusy = 0;
+    passes(8u);
+    TU_EQ(fakeLinkBitrate, 1000000u);
+    TU_EQ(fakeLinkSwitchAt, end);
+    TU_CHECK(frameEnd(6u, SPINEL_CMD_PROP_VALUE_IS, 0) > end);
+    TU_EQ(unhealthyPasses, 0u);
+    TU_EQ(lockedPasses, 0u);
+}
+
+/* A RESET is answered at the raised rate and then returns the link to the board's, as power-on does. */
+TU_TEST(a_reset_takes_the_link_back_to_the_boards_rate)
+{
+    uint32_t bps = 0u;
+
+    boot(21u);
+    setLinkRate(5u, 460800u);
+    passes(8u);
+    TU_EQ(fakeLinkBitrate, 460800u);
+
+    Fake_LinkReset();
+    request(7u, SPINEL_CMD_RESET, 2u, 0, 0u);
+    passes(8u);
+    TU_EQ(fakeLinkBitrate, 115200u);
+    TU_EQ(fakeLinkSwitchAt, frameEnd(0u, SPINEL_CMD_PROP_VALUE_IS, 0));
+
+    request(8u, SPINEL_CMD_PROP_VALUE_GET, PROPS_ID_UART_BITRATE, 0, 0u);
+    passes(8u);
+    TU_CHECK(frameEnd(8u, SPINEL_CMD_PROP_VALUE_IS, &bps) != 0u);
+    TU_EQ(bps, 115200u);
+}
+
+/* Framing errors with no frame since are a host at another rate - one that started over, or the
+ * flasher - and the link goes back to the board's rate for it; errors between frames are not. */
+TU_TEST(a_raised_rate_that_hears_only_errors_falls_back)
+{
+    uint32_t bps = 0u;
+
+    boot(22u);
+    setLinkRate(5u, 1000000u);
+    passes(8u);
+    TU_EQ(fakeLinkBitrate, 1000000u);
+
+    fakeLinkFrameErrors = (uint16_t)(fakeLinkFrameErrors + 7u);
+    passes(8u);
+    TU_EQ(fakeLinkBitrate, 1000000u);
+    TU_EQ(stillAnswers(6u), 1);
+
+    fakeLinkFrameErrors = (uint16_t)(fakeLinkFrameErrors + 7u);
+    passes(8u);
+    TU_EQ(fakeLinkBitrate, 1000000u);
+
+    fakeLinkFrameErrors = (uint16_t)(fakeLinkFrameErrors + 1u);
+    passes(8u);
+    TU_EQ(fakeLinkBitrate, 115200u);
+
+    Fake_LinkReset();
+    request(9u, SPINEL_CMD_PROP_VALUE_GET, PROPS_ID_UART_BITRATE, 0, 0u);
+    passes(8u);
+    TU_CHECK(frameEnd(9u, SPINEL_CMD_PROP_VALUE_IS, &bps) != 0u);
+    TU_EQ(bps, 115200u);
+    TU_EQ(unhealthyPasses, 0u);
+}
+
+/* A listed rate the link turns down leaves it where it was, and the property says so. */
+TU_TEST(a_rate_the_link_cannot_run_is_taken_back)
+{
+    uint32_t bps = 0u;
+
+    boot(23u);
+    fakeLinkRateRefused = 1;
+    setLinkRate(5u, 921600u);
+    passes(8u);
+    TU_EQ(fakeLinkBitrate, 115200u);
+
+    fakeLinkRateRefused = 0;
+    Fake_LinkReset();
+    request(6u, SPINEL_CMD_PROP_VALUE_GET, PROPS_ID_UART_BITRATE, 0, 0u);
+    passes(8u);
+    TU_CHECK(frameEnd(6u, SPINEL_CMD_PROP_VALUE_IS, &bps) != 0u);
+    TU_EQ(bps, 115200u);
+    TU_EQ(stillAnswers(7u), 1);
+}
+
 int main(void)
 {
     static const Tu_Test tests[] = {
@@ -633,7 +787,11 @@ int main(void)
         {"a_setter_that_keeps_failing_does_not_stop_the_radio", a_setter_that_keeps_failing_does_not_stop_the_radio},
         {"a_link_that_refuses_for_a_while_answers_again", a_link_that_refuses_for_a_while_answers_again},
         {"a_radio_step_due_without_an_interrupt_asks_for_the_next_pass",
-         a_radio_step_due_without_an_interrupt_asks_for_the_next_pass}};
+         a_radio_step_due_without_an_interrupt_asks_for_the_next_pass},
+        {"a_new_rate_follows_the_answer_that_set_it", a_new_rate_follows_the_answer_that_set_it},
+        {"a_reset_takes_the_link_back_to_the_boards_rate", a_reset_takes_the_link_back_to_the_boards_rate},
+        {"a_raised_rate_that_hears_only_errors_falls_back", a_raised_rate_that_hears_only_errors_falls_back},
+        {"a_rate_the_link_cannot_run_is_taken_back", a_rate_the_link_cannot_run_is_taken_back}};
 
     Tu_Run("rcp_app", tests, (int)(sizeof(tests) / sizeof(tests[0])));
     return 0; /* Tu_Run never returns */

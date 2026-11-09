@@ -62,4 +62,13 @@ uint16_t COM_TxPoll(void);
 uint16_t COM_NotifyPoll(void);
 void COM_Witnesses(void);
 
+/* ---- The line rate, on a link that can change it (DS_LINK_BITRATE, docs/protocol.md §10) ---- */
+/* Move the link to `bps`. 1 = done, the next octet in either direction is at the new rate; 0 = a
+ * write is still on the line, so ask again on a later pass; -1 = the link cannot run that rate.
+ * Main loop only. */
+int COM_SetBitrate(uint32_t bps);
+
+/* Octets received with a framing error since boot, wrapping: what a host at another rate looks like. */
+uint16_t COM_RxFrameErrors(void);
+
 #endif

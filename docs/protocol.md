@@ -32,6 +32,7 @@ What has run on it is `docs/testing.md`. Phoscon Zigbee Stack, the reference hos
 | a Thread 1.4 host with no skip flag | yes | yes | yes | yes |
 | a CSL child | not tested | not tested | not tested | not tested, unlikely behind this link |
 | transmit power cap in dBm at the transceiver, channels 11 to 25 / 26 (§10) | −3 / −12 | −6 / −17 | 10 / 10 | −11 / −11 |
+| a host-set line rate, `UART_BITRATE` (§10) | — (USB) | no | yes | no |
 
 `cb3` is the image on RAIL throughout this document, and the line rate of each board is §2. The ConBee III on RAIL does not see an Ack while promiscuous, so a frame that asks for one completes as `NO_ACK`; a host with `MAC_PROMISCUOUS_MODE` off is not affected.
 
@@ -63,7 +64,7 @@ A bidirectional byte pipe carrying HDLC-framed Spinel in both directions. The li
 |---|---|---|
 | ConBee II | native USB CDC: VID `0x1CF1`, PID `0x0030`, bulk OUT EP2 to the RCP, bulk IN EP1 from it | none: line coding is ignored |
 | RaspBee II | UART on the Raspberry Pi header | 115 200 baud |
-| ConBee III | UART behind the stick's USB-serial bridge | 115 200 baud |
+| ConBee III | UART behind the stick's USB-serial bridge | 115 200 baud from power-on; the host may raise it with `UART_BITRATE` (§10) |
 | ConBee I, RaspBee I | UART behind an FTDI bridge, or on the Pi header | 57 600 baud |
 
 - Inbound bytes go into a 512-byte ring; a host that overruns it loses the oldest bytes.
@@ -352,6 +353,7 @@ Access is R = GET, W = SET. Types are the Spinel type letters of §4.
 | `0x0803` | `RCP_ENH_ACK_PROBING` | struct | W | short address, extended address, metrics byte (LQI `0x02`, link margin `0x04`, RSSI `0x08`, at most two used; `0` ends it), up to 8 sources. An Ack to one carries the metrics of the frame before it |
 | `0x0804` | `RCP_CSL_ACCURACY` | `C` | R | the clock's accuracy, 40 ppm, 802.15.4's limit for the crystal |
 | `0x0805` | `RCP_CSL_UNCERTAINTY` | `C` | R | a timed frame's uncertainty, in units of 10 µs: 20 |
+| `0x0100` | `UART_BITRATE` | `L` | R/W | the host link's line rate, on the ConBee III only (below); 115 200 from power-on and after `RESET` |
 | `0x120B` | `RADIO_CAPS` | `i` | R | the `OT_RADIO_CAPS_*` bits this radio has (below) |
 | `0x1303` | `MAC_SRC_MATCH_ENABLED` | `b` | R/W | default 0 (10.2) |
 | `0x1304` | `MAC_SRC_MATCH_SHORT_ADDRESSES` | `A(S)` | R/W, INSERT, REMOVE | default empty (10.2) |
@@ -362,6 +364,7 @@ Access is R = GET, W = SET. Types are the Spinel type letters of §4.
 - **`RADIO_CAPS`** advertises `ACK_TIMEOUT`, `ENERGY_SCAN`, `TRANSMIT_RETRIES`, `CSMA_BACKOFF`, `RX_ON_WHEN_IDLE`, `TRANSMIT_SEC` and `TRANSMIT_TIMING`, and nothing else. A host that sets `MAC_RX_ON_WHEN_IDLE` for that bit is answered, but the setting changes nothing (above).
 - **`MAC_PROMISCUOUS_MODE`:** 0 OFF — the address filter, and the RCP acknowledges; 1 NETWORK — every frame on this PAN; 2 FULL — every frame, FCS-invalid ones flagged, no Acks (the sniffer mode). Any other value is `INVALID_ARG`.
 - **`RCP_LOG_CRASH_DUMP` (`0xB2`)** streams the debug records in-band once a host writes 1 to it, until it writes 0: a `RESET` does not stop it; an empty write, OpenThread's request for a crash dump, is answered `OK` and starts nothing. Each notification is a little-endian `u16` count and up to 19 eight-byte records.
+- **`UART_BITRATE` (`0x0100`)** is upstream's property, on a board whose link is a UART that can change its rate. A SET takes 115 200, 230 400, 460 800, 921 600 or 1 000 000, and any other value is `INVALID_ARG`. The answer to the SET is the last frame at the old rate: the RCP moves once that answer has left, and the host moves when it has read it. Unlike upstream's, the rate does not outlive a `RESET`: the `RESET` is answered at the raised rate, and then the link is back at 115 200. At a raised rate, eight framing errors with no good frame since also return the link to 115 200, so a host that starts over at that rate, or GCFFlasher, reaches the RCP within a few frames. There is no flow control: a ConBee III that transmits with CSMA-CA at 1 000 000 leaves about one request in a thousand without a completion, and none at 460 800.
 - **Handled outside the table:** `STREAM_RAW` (`0x71`, §7); `STREAM_DEBUG` (`0x70`) is the probe image's record channel. The scan events `0x33` and `0x39` are notifications, not properties: a GET answers `PROP_NOT_FOUND`.
 
 ### 10.1 The scan family

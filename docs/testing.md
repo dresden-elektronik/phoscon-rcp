@@ -59,7 +59,7 @@ The rigs prove on real radios what no offline test can. Every tool takes its nod
 |---|---|
 | `tools/rcp_pair.py` | two nodes: the receive filter per mode, the Ack policy, the Ack's Frame Pending bit, a frame larger than one USB packet |
 | `tools/rcp_matrix.py` | every board against every other, both directions (Figure 1) |
-| `tools/rcp_throughput.py` | two nodes: acknowledged frames per second for each PSDU size, one direction or both, beside an estimate from the links' line rates and the 802.15.4 air timing that names the stage that limits it; `--latency-timer-ms` sets the FTDI bridges' latency timer for the run on macOS, and `--estimate` prints the estimate alone |
+| `tools/rcp_throughput.py` | two nodes: acknowledged frames per second for each PSDU size, one direction or both, beside an estimate from the links' line rates and the 802.15.4 air timing that names the stage that limits it; `--latency-timer-ms` sets the FTDI bridges' latency timer for the run on macOS, `--bitrate` moves a UART RCP to a faster line rate with `UART_BITRATE`, and `--estimate` prints the estimate alone |
 | `tools/cb3_rcp_check.py` | a ConBee III (or, with `--baud`, any UART RCP) against a ConBee II |
 | `tools/rcp_enh_ack.py` | two sticks, the second a reference RCP (or, swapped, the one under test): Enhanced Acks both ways, a frame encrypted here decrypting there, probing, and timed frames as the second radio stamps them, every byte checked with an independent AES-CCM |
 | `tools/rcp_scan_gates.py`, `tools/rcp_energy_sweep.py` | the energy-scan contract, and with `--peer` that a MAC node still hears, filters and acknowledges after a dwell and after a RESET; a sweep with the peer silent and then transmitting |

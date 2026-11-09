@@ -215,8 +215,12 @@ enum
                                    clock: the only way to tell a period from a pace */
     DBG_APP_RSN_LINK_INIT_FAIL,  /* COM_Init reported the host link could not be armed (hal/com.h); the
                                    link then never reports present, and this record is the only sign of it */
-    DBG_APP_RSN_TX_STUCK         /* a transmission stayed in flight past RCP_TX_STUCK_MS (rcp/session.h):
+    DBG_APP_RSN_TX_STUCK,        /* a transmission stayed in flight past RCP_TX_STUCK_MS (rcp/session.h):
                                    the loop stops feeding the watchdog, and its reset follows */
+    DBG_APP_RSN_LINK_RATE,       /* the host link now runs at the rate UART_BITRATE asked for; the value
+                                   is that rate in units of 100 bit/s */
+    DBG_APP_RSN_LINK_FALLBACK    /* framing errors and no frame at a raised rate: the link returns to the
+                                   board's own (docs/protocol.md §10) */
 };
 
 /* RF / SERCOM4-SPI reasons: a bounded sync wait ran out, each naming the register

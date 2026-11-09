@@ -46,17 +46,26 @@ FULL, NETWORK, OFF = 2, 1, 0
 FRAME_VERSION_2003 = 0x00
 
 
+IOSSIOSPEED = 0x80045402  # macOS _IOW('T', 2, speed_t): a rate termios has no constant for
+
+
 def set_line_rate(fd, baud):
-    """The tty raw at `baud`, both directions, with anything already buffered discarded."""
+    """The tty raw at `baud`, both directions, with anything already buffered discarded. macOS names no
+    rate above 230 400 in termios, so there the rate is set after the attributes, by its driver's ioctl."""
     import termios
     import tty
     speed = getattr(termios, f"B{baud}", None)
-    if speed is None:
+    if speed is None and sys.platform != "darwin":
         sys.exit(f"rcp_pair: baud {baud} is not supported by this system")
     tty.setraw(fd)
     attrs = termios.tcgetattr(fd)
-    attrs[4] = attrs[5] = speed
+    if speed is not None:
+        attrs[4] = attrs[5] = speed
     termios.tcsetattr(fd, termios.TCSANOW, attrs)
+    if speed is None:
+        import fcntl
+        import struct
+        fcntl.ioctl(fd, IOSSIOSPEED, struct.pack("I", baud))
     termios.tcflush(fd, termios.TCIOFLUSH)
 
 

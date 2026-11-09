@@ -203,6 +203,38 @@ void Uart_SetRxHandler(Uart_DataInFn fn)
     uartRxHandler = fn;
 }
 
+/* The rate moves only on an idle line: no chunk armed, and the status says the buffer and the shift
+ * register are empty - the pipe alone may turn READY while a chunk's last octet is still going out
+ * (USART0_TX_Handler). CLKDIV is a plain read-write register, not one locked while the block is enabled
+ * (reference manual 20.5), so the block keeps running; an octet half received at the old rate is
+ * cleared, not delivered at the new one. */
+int Uart_SetBaud(uint32_t baud)
+{
+    uint32_t refHz = Clock_LinkHz();
+    uint32_t clkdiv;
+
+    if (!uartReady || uartTxPipe != UART_PIPE_READY ||
+        (MG21_USART0->STATUS & (MG21_USART_STATUS_TXC | MG21_USART_STATUS_TXIDLE)) == 0u)
+        return 0;
+
+    if (refHz == 0u || !UsartBaud_ClkDiv(refHz, baud, UART_REF_OVS, &clkdiv))
+    {
+        DBG(DBG_COMP_UART, DBG_UART_RSN_BAUD_REFUSED);
+        return -1;
+    }
+
+    MG21_USART0->CLKDIV = clkdiv;
+    MG21_USART0->CMD = MG21_USART_CMD_CLEARRX;
+    uartClkDiv = clkdiv;
+    uartAchievedHz = UsartBaud_RateHz(refHz, UART_REF_OVS, clkdiv);
+    return 1;
+}
+
+uint16_t Uart_RxFrameErrors(void)
+{
+    return uartRxFrameErrors;
+}
+
 /* ---- out: one chunk in flight ---- */
 
 /* Only TXBL is armed: it is a level flag, so the vector is entered while the buffer has room. TXC is
@@ -357,9 +389,10 @@ void USART0_RX_Handler(void)
  * them apart, because TXBL stays set whenever the buffer is empty and TXC stays set until cleared.
  *
  * TXC is not cleared here. A higher-priority vector can hold this one past the last octet's own time
- * on the wire - 87 us at 115 200 Bd - and a clear after that wipes the only TXC the chunk gets, which
+ * on the wire - 10 us at 1 Mbit/s - and a clear after that wipes the only TXC the chunk gets, which
  * leaves the pipe ARMED for good. Cleared at arm time instead, a TXC from a gap mid-chunk can end the
- * chunk early, while its last octet is still going out, and the next chunk only queues behind it. */
+ * chunk early, while its last octet is still going out; the next chunk only queues behind it, and a
+ * rate change checks the line itself (Uart_SetBaud). */
 void USART0_TX_Handler(void)
 {
     uint32_t flags = MG21_USART0->IF;

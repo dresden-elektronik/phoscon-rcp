@@ -55,6 +55,9 @@ static const Props_Desc propsTable[] = {{PROPS_ID_HWADDR, PROPS_T_BE64, PROPS_RO
                                         {PROPS_ID_RCP_CSL_UNCERTAINTY, PROPS_T_U8, PROPS_RO},
 #endif
 #endif
+#ifdef RCP_UART_BITRATE
+                                        {PROPS_ID_UART_BITRATE, PROPS_T_U32, PROPS_RW},
+#endif
                                         {PROPS_ID_RCP_LOG_CRASH_DUMP, PROPS_T_U8, PROPS_RW}};
 
 /* docs/protocol.md §10: PROTOCOL_VERSION 4.3 is what zoh reads. */
@@ -76,6 +79,27 @@ static const uint32_t propsCaps[] = {PROPS_CAP_CONFIG_RADIO,
                                      PROPS_CAP_RCP_MIN_HOST_API_VERSION,
                                      PROPS_CAP_RCP_LOG_CRASH_DUMP,
                                      PROPS_CAP_MAC_RAW};
+
+#ifdef RCP_UART_BITRATE
+/* What every board with the property programs within 1 % (test_props.c checks the ConBee III's
+ * divisor for each); the hosts' common rates, up to the 1 Mbit/s a byte-per-interrupt receiver keeps
+ * up with. */
+static const uint32_t propsUartBitrates[] = {115200u, 230400u, 460800u, 921600u, 1000000u};
+
+const uint32_t *Props_UartBitrates(uint16_t *count)
+{
+    if (count != 0)
+        *count = (uint16_t)(sizeof(propsUartBitrates) / sizeof(propsUartBitrates[0]));
+
+    return propsUartBitrates;
+}
+
+void Props_UartBitrateRevert(Props_State *s)
+{
+    if (s != 0)
+        s->uartBitrate = s->uartBitrateDefault;
+}
+#endif
 
 const Props_Desc *Props_Table(uint16_t *count)
 {
@@ -140,6 +164,11 @@ void Props_Init(Props_State *s, const Props_Identity *id)
     /* An empty, disabled table: a host that writes nothing gets the standard's fallback, which
      * is "pending", not "nothing queued" (docs/protocol.md §10.2). */
     SrcMatch_Init(&s->srcMatch);
+#ifdef RCP_UART_BITRATE
+    /* A RESET returns the link to the board's rate, as power-on does (docs/protocol.md §6). */
+    s->uartBitrateDefault = (id != 0) ? id->linkBitrate : 0u;
+    s->uartBitrate = s->uartBitrateDefault;
+#endif
     s->ncpVersion = (id != 0 && id->ncpVersion != 0) ? id->ncpVersion : "dspinelless";
     s->hwAddr = (id != 0) ? id->hwAddr : 0;
 }
@@ -406,6 +435,12 @@ uint32_t Props_Get(const Props_State *s, uint32_t id, U_BStream *dst)
             break;
         }
 
+#ifdef RCP_UART_BITRATE
+        case PROPS_ID_UART_BITRATE:
+            U_bstream_put_u32_le(dst, s->uartBitrate);
+            break;
+#endif
+
         case PROPS_ID_MAC_SCAN_PERIOD:
             U_bstream_put_u8(dst, (uint8_t)(s->scanPeriodMs & 0xFFu));
             U_bstream_put_u8(dst, (uint8_t)(s->scanPeriodMs >> 8));
@@ -512,6 +547,34 @@ uint32_t Props_Set(Props_State *s, uint32_t id, const uint8_t *value, uint16_t l
         s->scanMask = mask;
         return SPINEL_STATUS_OK;
     }
+
+#ifdef RCP_UART_BITRATE
+    /* A rate from the list, or nothing changes: the answer leaves at the old rate and the link follows,
+     * so an accepted rate the link cannot run would cut the host off. */
+    if (id == PROPS_ID_UART_BITRATE)
+    {
+        uint32_t bps;
+        uint8_t k;
+
+        if (len != 4u || value == 0)
+        {
+            return SPINEL_STATUS_INVALID_ARG;
+        }
+
+        bps = (uint32_t)value[0] | ((uint32_t)value[1] << 8) | ((uint32_t)value[2] << 16) | ((uint32_t)value[3] << 24);
+
+        for (k = 0u; k < (uint8_t)(sizeof(propsUartBitrates) / sizeof(propsUartBitrates[0])); ++k)
+        {
+            if (propsUartBitrates[k] == bps)
+            {
+                s->uartBitrate = bps;
+                return SPINEL_STATUS_OK;
+            }
+        }
+
+        return SPINEL_STATUS_INVALID_ARG;
+    }
+#endif
 
     /* The two address lists are length-decoded like MAC_SCAN_MASK: 'A(S)' and 'A(E)' carry no
      * count, so the length is the only statement of how many entries there are. */

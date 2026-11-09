@@ -50,6 +50,9 @@ set(DS_GUARD_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/image_guard.cmake")
 # user data page carries and what the bootloader, the vendor firmware and the vendor flasher all use
 # (docs/hardware_mg21.md §10.8).
 set(DS_LINK_BAUD "115200u" CACHE STRING "cb3 host-link line rate, e.g. 115200u")
+# The host may raise it with UART_BITRATE (docs/protocol.md §10): the bridge runs up to 3 Mbit/s, and
+# a RESET, a power cycle or a host it no longer hears brings the link back to 115 200.
+set(DS_UART_BITRATE ON)
 
 # A bring-up aid, because this board has no debugger: the heartbeat reports the live state of the
 # receive path every 2 s (hal/mg21/mg21_uart.c), which is how a link that transmits but does not

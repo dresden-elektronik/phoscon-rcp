@@ -19,6 +19,7 @@ void Rcp_Init(Rcp_Session *s, const Props_Identity *id)
         s->identity.txPowerMaxDbm = 0;
         s->identity.txPowerMaxCh26Dbm = 0;
         s->identity.hwAddr = 0;
+        s->identity.linkBitrate = 0u;
     }
 
     /* Nothing in flight and no sink until Rcp_SetTxSink names one, whatever the memory held. */
