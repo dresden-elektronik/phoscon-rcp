@@ -456,6 +456,14 @@ if(Python3_Interpreter_FOUND)
     COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/test/unit/test_flash_paths.py)
 endif()
 
+# ---- tools/rcp_throughput.py: the estimate's byte counts and the closed loop -------------------
+# The estimate is only as good as the bytes it counts, so its frames are checked against the reference
+# captures of docs/protocol.md; the loop runs against a fake RCP pair, each outcome in its own count.
+if(Python3_Interpreter_FOUND)
+  add_test(NAME rcp_throughput
+    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/test/unit/test_rcp_throughput.py)
+endif()
+
 # ---- the portable code with a 16-bit int (cbrb1) ------------------------------------------------
 # The ATmega256RFR2 runs the same rcp/, app/, com/uart.c and hal/dbg.c with avr-gcc's 16-bit int,
 # which the host suites never see. The host clang type-checks every portable source for the AVR and

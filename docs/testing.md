@@ -39,6 +39,7 @@ Plain C99 with a small in-house harness (`test/tu/`); no dependency beyond a com
 | `aes`, `mac_sec` | the AES library's known answers; securing a frame, against frames computed with an independent AES-CCM |
 | `props_no_thread`, `props_no_timing` | the property table of a build without Thread, such as the ConBee III's `own` back-end, and of one with MAC security but no timed transmit, whose wire surfaces must not move |
 | `dbg_queue`, `dbg_decoder`, `flasher_trap`, `mon_proto` | the debug-record queue; the witness tables of `tools/dbg.py`; the flasher's reset request in the raw byte stream; the bench register monitor's commands and address policy |
+| `rcp_throughput` | `tools/rcp_throughput.py`'s estimate against the reference captures of `docs/protocol.md`, and its closed loop against a fake RCP pair, each outcome in its own count |
 | `uart_baud`, `usart_baud`, `avr_baud`, `avr_clock_us`, `tick_plan` | each silicon's divisor and clock arithmetic |
 | `samr21_basic`, `mg21_ident`, `avr_ident` | each board's identity parse |
 | `mg21_regs`, `mg21_vectors`, `avr_regs`, `cb3_layout`, `mg21_reset_record` | register transcriptions, vector tables and flash layout against the vendor's own descriptions |
@@ -58,6 +59,7 @@ The rigs prove on real radios what no offline test can. Every tool takes its nod
 |---|---|
 | `tools/rcp_pair.py` | two nodes: the receive filter per mode, the Ack policy, the Ack's Frame Pending bit, a frame larger than one USB packet |
 | `tools/rcp_matrix.py` | every board against every other, both directions (Figure 1) |
+| `tools/rcp_throughput.py` | two nodes: acknowledged frames per second for each PSDU size, one direction or both, beside an estimate from the links' line rates and the 802.15.4 air timing that names the stage that limits it; `--latency-timer-ms` sets the FTDI bridges' latency timer for the run on macOS, and `--estimate` prints the estimate alone |
 | `tools/cb3_rcp_check.py` | a ConBee III (or, with `--baud`, any UART RCP) against a ConBee II |
 | `tools/rcp_enh_ack.py` | two sticks, the second a reference RCP (or, swapped, the one under test): Enhanced Acks both ways, a frame encrypted here decrypting there, probing, and timed frames as the second radio stamps them, every byte checked with an independent AES-CCM |
 | `tools/rcp_scan_gates.py`, `tools/rcp_energy_sweep.py` | the energy-scan contract, and with `--peer` that a MAC node still hears, filters and acknowledges after a dwell and after a RESET; a sweep with the peer silent and then transmitting |
