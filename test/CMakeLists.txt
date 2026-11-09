@@ -510,3 +510,45 @@ target_include_directories(test_mon_proto PRIVATE
 )
 target_compile_options(test_mon_proto PRIVATE -Wall -Wextra -std=c99)
 add_test(NAME mon_proto COMMAND test_mon_proto)
+
+# ---- app/ glue: rcp_app.c under hostile input --------------------------------------------
+# The glue between the link, the session and the radio, on the fakes of test/fakes/: no input the
+# host link carries may cost the board its watchdog (test_rcp_app.c).
+add_executable(test_rcp_app
+  unit/test_rcp_app.c
+  tu/tu.c
+  fakes/fake_board.c
+  fakes/fake_com.c
+  fakes/fake_radio.c
+  ${CMAKE_SOURCE_DIR}/src/app/rcp_app.c
+  ${CMAKE_SOURCE_DIR}/src/app/main_rcp.c
+  ${CMAKE_SOURCE_DIR}/src/hal/dbg.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/hdlc.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/mac.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/mac_sec.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/props.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/props_debug.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/props_stream.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/scan.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/session.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/spinel.c
+  ${CMAKE_SOURCE_DIR}/src/rcp/srcmatch.c
+  ${CMAKE_SOURCE_DIR}/src/lib/aes/aes_modes.c
+  ${CMAKE_SOURCE_DIR}/src/lib/aes/aes_table.c
+  ${CMAKE_SOURCE_DIR}/src/lib/u_bstream/u_bstream.c
+  ${CMAKE_SOURCE_DIR}/src/lib/u_sstream/u_sstream.c
+)
+target_include_directories(test_rcp_app PRIVATE
+  ${CMAKE_SOURCE_DIR}/test/fakes
+  ${CMAKE_SOURCE_DIR}/test/tu
+  ${CMAKE_SOURCE_DIR}/src/app
+  ${CMAKE_SOURCE_DIR}/src/board
+  ${CMAKE_SOURCE_DIR}/src/hal
+  ${CMAKE_SOURCE_DIR}/src/rcp
+  ${CMAKE_SOURCE_DIR}/src/lib/aes
+  ${CMAKE_SOURCE_DIR}/src/lib/u_bstream
+  ${CMAKE_SOURCE_DIR}/src/lib/u_sstream
+)
+target_compile_options(test_rcp_app PRIVATE -Wall -Wextra -std=c99)
+target_compile_definitions(test_rcp_app PRIVATE RCP_THREAD=1 RCP_TX_TIMING=1 RCP_CSL_ACCURACY_PPM=40 RCP_CSL_UNCERTAINTY_10US=20)
+add_test(NAME rcp_app COMMAND test_rcp_app)

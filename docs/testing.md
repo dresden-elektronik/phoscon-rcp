@@ -35,6 +35,7 @@ Plain C99 with a small in-house harness (`test/tu/`); no dependency beyond a com
 | `props`, `props_stream`, `props_debug` | the property table, the `STREAM_RAW` layouts, the crash-dump batch |
 | `session` | captured host dialogs replayed byte for byte; TID rules; the deferred TX completion |
 | `mac`, `srcmatch`, `scan` | header parsing and filtering, the source-match table, the energy-scan dwell |
+| `rcp_app` | the app glue on the fakes of `test/fakes/` (link, radio, tick): no input on the host link may cost the board its watchdog. Noise, frames cut or run together, more than the receive ring holds, fuzzed requests to every property, a timed frame due long after its request, and a link that refuses writes; after each, every pass is healthy and a version request is still answered |
 | `aes`, `mac_sec` | the AES library's known answers; securing a frame, against frames computed with an independent AES-CCM |
 | `props_no_thread`, `props_no_timing` | the property table of a build without Thread, such as the ConBee III's `own` back-end, and of one with MAC security but no timed transmit, whose wire surfaces must not move |
 | `dbg_queue`, `dbg_decoder`, `flasher_trap`, `mon_proto` | the debug-record queue; the witness tables of `tools/dbg.py`; the flasher's reset request in the raw byte stream; the bench register monitor's commands and address policy |
