@@ -507,8 +507,14 @@ static void rcpAppApplyRadio(void)
         if (Radio_RxEnable(wantRx))
             rcpRadioRx = wantRx;
     }
+}
 
-    Radio_Poll();
+/* Every pass, whatever the apply pass managed: a frame starts and completes and a received one is
+ * handed up here, so a setter the radio keeps refusing - retried next pass - must not stop it. */
+static void rcpAppPollRadio(void)
+{
+    if (rcpRadioReady)
+        Radio_Poll();
 }
 
 /* The dwell is over: put the transceiver back where it was, or where the host asked for meanwhile,
@@ -797,6 +803,7 @@ void RcpApp_Init(void)
      * properties and transmit in one USB batch, and until the radio is ready those SETs
      * are answered INVALID_STATE and the first frame is lost on air. */
     rcpAppApplyRadio();
+    rcpAppPollRadio();
 }
 
 uint32_t RcpApp_RxDropped(void)
@@ -940,6 +947,7 @@ void RcpApp_Poll(void)
     }
 
     rcpAppApplyRadio();
+    rcpAppPollRadio();
 #ifdef RCP_TX_TIMING
     rcpAppApplyMacSec();
 #endif

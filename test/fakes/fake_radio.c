@@ -18,6 +18,7 @@ uint32_t fakeRadioLeftOpen;
 uint8_t fakeRadioChannel = RADIO_CHAN_MIN;
 uint8_t fakeRadioTxChannel;
 uint32_t fakeRadioSrcMatchPushes;
+int fakeRadioAddrFails;
 uint8_t fakeRadioSrcMatchEnabled;
 uint8_t fakeRadioSrcMatchShorts;
 
@@ -38,6 +39,7 @@ void Fake_RadioReset(void)
     fakeRadioTxChannel = 0u; /* the channel stays: the glue's shadow of it survives RcpApp_Init too */
     fakeTxOpen = 0;
     fakeTxQueued = 0;
+    fakeRadioAddrFails = 0;
 }
 
 int Radio_Init(void)
@@ -98,7 +100,7 @@ int Radio_SetPanId(uint16_t panid, int on)
 {
     (void)panid;
     (void)on;
-    return 1;
+    return fakeRadioAddrFails ? 0 : 1;
 }
 
 int Radio_SetShortAddr(uint16_t addr, int on)

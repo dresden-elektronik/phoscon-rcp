@@ -527,6 +527,57 @@ TU_TEST(the_counters_keep_their_period_across_the_tick_wrap)
     TU_CHECK(counterRecords <= 8u);
 }
 
+/* 1 when the link has carried the transmission's answer for this TID: LAST_STATUS OK. */
+static int transmitAnswered(uint8_t tid)
+{
+    static Hdlc_Rx rx;
+    uint32_t at;
+    int seen = 0;
+
+    for (at = 0u; at < fakeLinkOutLen; ++at)
+    {
+        if (Hdlc_RxByte(&rx, fakeLinkOut[at]) == HDLC_RX_FRAME && rx.len >= 4u &&
+            rx.buf[0] == (uint8_t)(0x80u | tid) && rx.buf[1] == SPINEL_CMD_PROP_VALUE_IS &&
+            rx.buf[2] == (uint8_t)PROPS_ID_LAST_STATUS && rx.buf[3] == 0u)
+            seen = 1;
+    }
+
+    return seen;
+}
+
+/* A setter the radio keeps refusing - an address, say - is retried every pass, and must not stop the
+ * pass from polling the radio: that is where a transmission completes and a received frame is handed
+ * up. The frame goes out and its completion reaches the host while the setter still fails. */
+TU_TEST(a_setter_that_keeps_failing_does_not_stop_the_radio)
+{
+    static const uint8_t pan[2] = {0x34u, 0x12u};
+    uint8_t value[2u + 5u + PROPS_STREAM_TX_TRAILER];
+    uint32_t sent;
+    uint16_t i;
+
+    boot(11u);
+    enableTransmit();
+    fakeRadioAddrFails = 1;
+    Fake_LinkReset();
+    request(3u, SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_MAC_PANID, pan, sizeof(pan));
+
+    for (i = 0u; i < sizeof(value); ++i)
+        value[i] = 0u;
+
+    value[0] = 5u;
+    value[2] = 0x01u; /* a data frame, no Ack requested */
+    sent = fakeRadioTxCount;
+    request(4u, SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_STREAM_RAW, value, (uint16_t)sizeof(value));
+
+    for (i = 0u; i < 50u; ++i)
+        pass(10u);
+
+    TU_EQ(fakeRadioTxCount, sent + 1u);
+    TU_EQ(transmitAnswered(4u), 1);
+    TU_EQ(unhealthyPasses, 0u);
+    fakeRadioAddrFails = 0;
+}
+
 /* A link that refuses every write for a while: replies that do not fit are dropped, nothing waits on
  * the link, and it answers again once the link takes writes. */
 TU_TEST(a_link_that_refuses_for_a_while_answers_again)
@@ -567,6 +618,7 @@ int main(void)
         {"after_a_reset_the_radio_holds_the_empty_source_match_table",
          after_a_reset_the_radio_holds_the_empty_source_match_table},
         {"the_counters_keep_their_period_across_the_tick_wrap", the_counters_keep_their_period_across_the_tick_wrap},
+        {"a_setter_that_keeps_failing_does_not_stop_the_radio", a_setter_that_keeps_failing_does_not_stop_the_radio},
         {"a_link_that_refuses_for_a_while_answers_again", a_link_that_refuses_for_a_while_answers_again}};
 
     Tu_Run("rcp_app", tests, (int)(sizeof(tests) / sizeof(tests[0])));
