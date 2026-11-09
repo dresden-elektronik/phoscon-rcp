@@ -98,6 +98,8 @@ A build writes `phoscon-rcp` (ELF), `.bin`, `.map` and, after packaging, `.bin.G
 
 The header is 14 bytes, little-endian: magic `0xCAFEFEED`, type, target, size, a CRC-8 byte. A type-0 (plaintext) container is never built: always package with a board profile.
 
+On `rb2`, GCFTool writes three fields the bootloader checks into the image at offset `0x4000`, before it takes the CRC-8: the CRC-32 of the vector table, the CRC-32 of the image from `0x4100`, and the image size. The image leaves that place zeroed, in the gap below its code.
+
 ## 5. Flashing
 
 ![Two rows. On the host: cmake --build makes the image, the .bin; GCFTool -b with the board makes the container, the .GCF; gcf_check.py, the pre-flash guard, in amber, either refuses it, and nothing is flashed, or passes it to GCFFlasher -d with the port, which talks to the board. On the board: GCFFlasher's reset frame reaches the running app, this firmware or the vendor's, which resets into the bootloader's start window; GCFFlasher then sends the bootloader the container page by page, and after the CRC check the new image runs.](images/flash-flow.png)
@@ -166,7 +168,7 @@ Every flash path runs `tools/gcf_check.py --board <board>` before GCFFlasher; no
 | size | the image reaches a protected region (Figure 6); for `cbrb1` also an odd size, a whole number of 256-byte pages, or a `.bin` that does not start with a jump (`docs/hardware_avr.md`) |
 | CRCs | `cb3`: the outer CRC-8 or the inner CRC-32 does not verify |
 | inner shape | `cb3`: the product magic, the inner type or the inner target is wrong |
-| the `.bin`'s | the container was packed from another image: its size, or its plain-image checksum (the header CRC-8 on `cb2`, `rb2` and `cbrb1`, the inner CRC-32 on `cb3`), does not match the `.bin`; or the `.GCF` is older than the `.bin` |
+| the `.bin`'s | the container was packed from another image: its size, or its plain-image checksum (the header CRC-8 on `cb2`, `rb2` and `cbrb1`, the inner CRC-32 on `cb3`), does not match the `.bin`; or the `.GCF` is older than the `.bin`. On `rb2` the CRC-8 is taken with the bootloader's fields written in (§4), and a `.bin` with data in their place is refused |
 
 A released container comes without its `.bin`: `--released` runs every check that needs only the container (§12). A wrapper never assumes it: `tools/rb2_flash.py` and `tools/cbrb1_flash.py` take the `.bin` or an explicit `--released`. The `flash_paths` suite fails when a tracked tool flashes without the guard for a named board.
 

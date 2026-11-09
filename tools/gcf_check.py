@@ -25,7 +25,8 @@ Checks (all must pass, exit 0; else non-zero):
   5. for cb3, both checksum layers and the inner container's shape
   6. the GCF is the .bin's: its size and its plain-image checksum match the .bin (the header CRC-8
      for cb2, rb2 and cbrb1, the inner CRC-32 of the plain image for cb3), and it is not older than
-     the .bin. The checksum catches a container left over from another build, which a newer file
+     the .bin. On rb2 the CRC-8 covers the image with the bootloader's fields written in, as GCFTool
+     writes them, and the .bin must leave their place empty. The checksum catches a container left over from another build, which a newer file
      date does not; the date still backs the CRC-8, which one changed image in 256 would pass.
 
 Board: --board cb2 (default) | --board rb2 | --board cb3 | --board cbrb1. cb2 and
@@ -57,6 +58,15 @@ BOARDS = {
     "cb3": (60, 60),  # extended container, inner AES image type 61..65
     "cbrb1": (1, 10), # GCFTool -b cbrb1 writes type 1
 }
+
+# rb2: the RaspBee II bootloader checks three u32 fields at image offset 0x4000, in the gap the image
+# leaves zeroed below its code (src/targets/rb2/atsamr21.ld): the CRC-32 of the vector table, the CRC-32
+# of the image from 0x4100, and the image size. GCFTool -b rb2 writes them into an image of at least
+# 0x4100 bytes before it takes the header CRC-8.
+RB2_FIELDS = 0x4000
+RB2_FIELDS_LEN = 12
+RB2_VECTORS_LEN = 0x100
+RB2_APP_START = 0x4100
 
 AVR_BOARDS = ("cbrb1",)
 AVR_BOOT_BASE = 0x3E000   # 8 KiB boot section; the application is 0..0x3DFFF
@@ -214,6 +224,17 @@ def check_avr(gcf: str, board: str, addr: int, size: int, fsize: int,
     return 0
 
 
+def rb2_plain(image: bytes) -> bytes:
+    """The plain image a RaspBee II container's header CRC-8 covers: the .bin with the bootloader's
+    fields written in, when it is long enough to carry them."""
+    if len(image) < RB2_APP_START:
+        return image
+    plain = bytearray(image)
+    struct.pack_into("<III", plain, RB2_FIELDS, crc32(image[:RB2_VECTORS_LEN]),
+                     crc32(image[RB2_APP_START:]), len(image))
+    return bytes(plain)
+
+
 def crc8(data: bytes) -> int:
     crc = 0
     for b in data:
@@ -282,6 +303,12 @@ def main() -> int:
             print(f"gcf_check: size field {size} != image {len(image)} B in {binp}: "
                   "the container is from another build")
             return 1
+        if board == "rb2" and len(image) >= RB2_APP_START:
+            if any(image[RB2_FIELDS:RB2_FIELDS + RB2_FIELDS_LEN]):
+                print(f"gcf_check: {binp} holds data at 0x{RB2_FIELDS:X}, where GCFTool writes the "
+                      "bootloader's fields")
+                return 1
+            image = rb2_plain(image)
         if h[13] != crc8(image):
             print(f"gcf_check: header CRC-8 0x{h[13]:02X} != 0x{crc8(image):02X} of {binp}: "
                   "the container is from another build")

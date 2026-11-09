@@ -88,6 +88,21 @@ def classic(payload_len=None, type_byte=1, target=0x5000, size=None, crc=None, i
     return head + bytes([crc8(image) if crc is None else crc]) + payload
 
 
+def rb2_image(length=0x4400):
+    """A full-size RaspBee II image: a known pattern with the bootloader's field area left zeroed."""
+    image = bytearray(pattern(length, 7))
+    image[0x4000:0x400C] = bytes(12)
+    return bytes(image)
+
+
+def rb2_fields(image):
+    """The image as GCFTool -b rb2 packs it: the bootloader's fields at 0x4000 written in."""
+    plain = bytearray(image)
+    struct.pack_into("<III", plain, 0x4000, zlib.crc32(image[:0x100]) & 0xFFFFFFFF,
+                     zlib.crc32(image[0x4100:]) & 0xFFFFFFFF, len(image))
+    return bytes(plain)
+
+
 def avr_image(length=1026):
     """A plain image with a JMP at word 0, the shape the RaspBee I bootloader starts."""
     body = bytes((i * 7 + 3) & 0xFF for i in range(length - 4))
@@ -184,6 +199,17 @@ def main() -> int:
            image=bytes(other))
     expect("newer container from another build of another size", "rb2", classic(type_byte=31), 1,
            "size field", "another build", image=pattern(1000))
+
+    img = rb2_image()
+    expect("full-size rb2 container, CRC-8 over the bootloader's fields", "rb2",
+           classic(type_byte=31, image=img, crc=crc8(rb2_fields(img))), 0, "OK", "board=rb2", image=img)
+    expect("full-size rb2 container, CRC-8 over the bare image", "rb2", classic(type_byte=31, image=img), 1,
+           "CRC-8", "another build", image=img)
+    busy = bytearray(img)
+    busy[0x4004] = 0x01
+    expect("rb2 image with data where the bootloader's fields go", "rb2",
+           classic(type_byte=31, image=bytes(busy), crc=crc8(rb2_fields(bytes(busy)))), 1, "0x4000",
+           image=bytes(busy))
 
     print("== cbrb1: the RaspBee I bootloader's container ==")
     img = avr_image()
