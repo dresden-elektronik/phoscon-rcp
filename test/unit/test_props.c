@@ -175,6 +175,67 @@ TU_TEST(every_table_entry_answers_a_get)
     }
 }
 
+/* Props_Init is the power-on state, and a RESET runs it on a state that has lived: nothing of what was
+ * there before may show. A state full of garbage and a zeroed one must read back the same, property by
+ * property, and the record stream a host had switched on is off again. */
+TU_TEST(init_leaves_nothing_of_what_was_there_before)
+{
+    static const uint8_t on = 1u;
+    Props_Identity id;
+    Props_State dirty;
+    Props_State clean;
+    const Props_Desc *t = Props_Table(0);
+    uint16_t n = 0u;
+    uint16_t i;
+    uint16_t k;
+
+    initIdentity(&id);
+
+    for (k = 0u; k < sizeof(dirty); ++k)
+    {
+        ((uint8_t *)&dirty)[k] = 0xA5u;
+        ((uint8_t *)&clean)[k] = 0x00u;
+    }
+
+    Props_Init(&dirty, &id);
+    Props_Init(&clean, &id);
+    (void)Props_Table(&n);
+
+    for (i = 0; i < n; ++i)
+    {
+        uint8_t a[64];
+        uint8_t b[64];
+        U_BStream sa;
+        U_BStream sb;
+
+        if ((t[i].access & PROPS_ACC_READ) == 0u)
+            continue;
+
+        U_bstream_init(&sa, a, sizeof(a));
+        U_bstream_init(&sb, b, sizeof(b));
+        TU_EQ(Props_Get(&dirty, t[i].id, &sa), Props_Get(&clean, t[i].id, &sb));
+        TU_EQ(U_bstream_remaining(&sa), U_bstream_remaining(&sb));
+
+        for (k = 0u; k < (uint16_t)(sizeof(a) - U_bstream_remaining(&sa)); ++k)
+        {
+            if (a[k] != b[k])
+            {
+                TU_NOTE("property differs after init", t[i].id);
+                TU_CHECK(0);
+                break;
+            }
+        }
+    }
+
+    TU_EQ(dirty.logEnabled, 0u);
+
+    /* A host turned the record stream on; a RESET turns it off. */
+    TU_EQ(Props_Set(&clean, PROPS_ID_RCP_LOG_CRASH_DUMP, &on, 1u), SPINEL_STATUS_OK);
+    TU_EQ(clean.logEnabled, 1u);
+    Props_Init(&clean, &id);
+    TU_EQ(clean.logEnabled, 0u);
+}
+
 TU_TEST(protocol_version_is_the_captured_04_03)
 {
     Props_Identity id;
@@ -1077,6 +1138,7 @@ int main(void)
 {
     static const Tu_Test tests[] = {
         {"mac_property_ids_match_upstream_spinel", mac_property_ids_match_upstream_spinel},
+        {"init_leaves_nothing_of_what_was_there_before", init_leaves_nothing_of_what_was_there_before},
         {"the_source_match_family_has_upstream_ids_types_and_defaults",
          the_source_match_family_has_upstream_ids_types_and_defaults},
         {"a_short_list_is_stored_and_read_back_byte_for_byte",

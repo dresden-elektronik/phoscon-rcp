@@ -1037,6 +1037,38 @@ TU_TEST(a_reset_during_a_transmission_drops_its_completion)
     TU_CHECK(Rcp_TxDone(&session, 8u, RADIO_TX_OK, 0, &bs) > 0u);
 }
 
+/* Rcp_Init is a session's start, whatever its memory held: no sink, nothing in flight, healthy. */
+TU_TEST(init_starts_a_session_with_nothing_in_flight)
+{
+    static const uint8_t psdu[3] = {0x01u, 0x00u, 0x42u};
+    Props_Identity id;
+    uint8_t payload[64];
+    uint8_t reply[OUT];
+    uint16_t k;
+    uint16_t n;
+
+    for (k = 0u; k < sizeof(session); ++k)
+        ((uint8_t *)&session)[k] = 0xA5u;
+
+    id.ncpVersion = "DSPINEL/1.0; AT86RF233";
+    id.rxSensitivityDbm = -96;
+    id.txPowerMaxDbm = 127;
+    id.txPowerMaxCh26Dbm = 127;
+    id.hwAddr = 0;
+    Rcp_Init(&session, &id);
+
+    TU_EQ(Rcp_Healthy(&session, 0u), 1);
+    TU_EQ(Rcp_Healthy(&session, 100000u), 1);
+
+    /* No sink yet: a transmit request is INVALID_STATE, not BUSY, and reaches nothing. */
+    sinkCalls = 0;
+    enableRawStream();
+    n = setStreamRaw(4u, payload, txPayload(payload, psdu, 3u, 26u, 0, 0u), reply);
+    TU_CHECK(n >= 4u);
+    TU_EQ(reply[3], SPINEL_STATUS_INVALID_STATE);
+    TU_EQ(sinkCalls, 0);
+}
+
 /* The property handler's status is the answer, not NOMEM (docs/protocol.md §5). */
 TU_TEST(a_get_that_fails_reports_the_handlers_status)
 {
@@ -1417,6 +1449,7 @@ int main(void)
          a_timed_transmission_has_its_delay_on_top_of_the_limit},
         {"a_timed_transmission_is_not_stuck_before_its_moment", a_timed_transmission_is_not_stuck_before_its_moment},
         {"a_reset_during_a_transmission_drops_its_completion", a_reset_during_a_transmission_drops_its_completion},
+        {"init_starts_a_session_with_nothing_in_flight", init_starts_a_session_with_nothing_in_flight},
         {"a_reset_forgets_the_keys", a_reset_forgets_the_keys},
         {"a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header",
          a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header},

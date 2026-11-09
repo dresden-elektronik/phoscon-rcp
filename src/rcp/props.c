@@ -128,6 +128,7 @@ void Props_Init(Props_State *s, const Props_Identity *id)
     s->radioTimeUs = 0u;
 #endif
     s->rawStreamEnabled = 0u;
+    s->logEnabled = 0u; /* the record stream is off until a host asks again, after a RESET too */
     s->rxOnWhenIdle = 0u;
     s->promiscuousMode = 0u;
     /* The scan family defaults to what upstream's RCP build reports, so a host that never writes a

@@ -18,7 +18,21 @@ void Rcp_Init(Rcp_Session *s, const Props_Identity *id)
         s->identity.rxSensitivityDbm = 0;
         s->identity.txPowerMaxDbm = 0;
         s->identity.txPowerMaxCh26Dbm = 0;
+        s->identity.hwAddr = 0;
     }
+
+    /* Nothing in flight and no sink until Rcp_SetTxSink names one, whatever the memory held. */
+    s->txSink = 0;
+    s->txCtx = 0;
+    s->txInFlight = 0;
+    s->txOrphan = 0;
+    s->txTid = 0u;
+    s->txWatched = 0;
+    s->txSinceMs = 0u;
+    s->txLimitMs = 0u;
+#ifdef RCP_THREAD
+    s->txAck = 0;
+#endif
 
     s->framesIn = 0u;
     s->malformed = 0u;
