@@ -82,6 +82,7 @@ int main(void)
     for (;;)
     {
         uint32_t ms;
+        int again = 0;
         Tick_GetMs(&ms);
         LoopDiag_Tick(ms);
 
@@ -128,6 +129,8 @@ int main(void)
 
             if (App_Healthy(ms))
                 Wdt_Feed();
+
+            again = App_PollAgain();
         }
 #ifdef DS_SCRATCH_ROW
         /* The only place an ISR-queued record can reach flash: Nvram_StatusStage and
@@ -136,6 +139,8 @@ int main(void)
         Nvram_StatusFlush();
         LoopDiag_End(LOOP_DIAG_LINE_NVRAM_FLUSH);
 #endif
-        HAL_Wfi();
+        /* A step that no interrupt announces runs in the next pass, not after the next tick. */
+        if (!again)
+            HAL_Wfi();
     }
 }

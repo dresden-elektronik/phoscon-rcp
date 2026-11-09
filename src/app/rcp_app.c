@@ -829,6 +829,11 @@ int RcpApp_Healthy(uint32_t ms)
     return healthy;
 }
 
+int RcpApp_PollAgain(void)
+{
+    return rcpRadioReady ? Radio_PollAgain() : 0;
+}
+
 void RcpApp_PushFromIrq(const uint8_t *buf, uint16_t len)
 {
     uint16_t i;

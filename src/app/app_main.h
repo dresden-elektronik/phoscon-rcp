@@ -28,4 +28,8 @@ void App_Poll(uint32_t ms);
  * watchdog feed (docs/architecture.md §7). */
 int App_Healthy(uint32_t ms);
 
+/* After App_Poll, every pass: 1 when this mode has a step due that no interrupt will announce, so the
+ * loop runs the next pass at once instead of waiting in HAL_Wfi. */
+int App_PollAgain(void);
+
 #endif

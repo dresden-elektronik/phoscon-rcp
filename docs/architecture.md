@@ -151,6 +151,7 @@ The radio vector preempts everything but a UART link's vector, because the Ack's
 
 - **One owner of the SPI at a time.** The loop takes `Rf_Lock`, which masks the radio line; the vector needs no lock, because nothing that uses the SPI can preempt it. A transmission takes the radio only between frames.
 - **One reader of the radio's IRQ status.** Reading it clears it, so only the vector reads it, and passes on what it does not handle.
+- **The loop sleeps only when nothing is due.** A pass ends in `HAL_Wfi` unless a machine's next step waits on a state that no interrupt announces (`App_PollAgain`): on the SAMR21, the transceiver reaching `TX_ARET_ON`, microseconds away, where the tick or USB frame that would wake the loop is up to a millisecond away.
 - **Nothing stalls the bus.** A stalled store blocks every vector on a Cortex-M0+, so the watchdog feed skips while its register synchronises (`docs/hardware_samr21.md`).
 - **Shared state is `volatile`**, and a value wider than the core's word that a handler writes is read under `HAL_IrqLock`.
 - **Deadlines are compared as `(int32_t)(now - deadline)`**, so the 32-bit millisecond tick may wrap.

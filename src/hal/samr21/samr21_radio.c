@@ -1984,6 +1984,14 @@ void Radio_Poll(void)
     radioRxDeliver();
 }
 
+/* WAIT_ARET is the one phase no interrupt ends: the transceiver takes TX_ARET_ON from PLL_ON without
+ * settling its PLL, and only the next pass uploads the frame and starts it. Every other phase ends on
+ * TRX_END, ED_DONE or a millisecond deadline. */
+int Radio_PollAgain(void)
+{
+    return (radio.inited && radio.txPhase == RADIO_TX_WAIT_ARET) ? 1 : 0;
+}
+
 /* Field-by-field for the same memcpy reason (see radioRxPush). */
 void Radio_GetCounters(Radio_Counters *out)
 {

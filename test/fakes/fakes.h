@@ -29,6 +29,7 @@ extern uint8_t fakeRadioChannel;   /* the channel the radio holds */
 extern uint8_t fakeRadioTxChannel; /* the channel the last frame went out on */
 extern uint32_t fakeRadioSrcMatchPushes; /* source-match tables the glue handed down */
 extern int fakeRadioAddrFails;           /* 1: Radio_SetPanId refuses, as a radio that went away does */
+extern int fakeRadioPollAgain;           /* what Radio_PollAgain answers */
 extern uint8_t fakeRadioSrcMatchEnabled; /* and what the radio holds from the last one */
 extern uint8_t fakeRadioSrcMatchShorts;
 void Fake_RadioReset(void);

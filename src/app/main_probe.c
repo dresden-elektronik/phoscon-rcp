@@ -51,3 +51,9 @@ int App_Healthy(uint32_t ms)
     (void)ms;
     return 1;
 }
+
+/* The records drain as the link's IN completes, and that completion is an interrupt. */
+int App_PollAgain(void)
+{
+    return 0;
+}

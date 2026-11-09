@@ -604,6 +604,18 @@ TU_TEST(a_link_that_refuses_for_a_while_answers_again)
     TU_EQ(lockedPasses, 0u);
 }
 
+/* The radio's step that no interrupt announces reaches the loop, which then skips its wait for one pass;
+ * with nothing due the loop sleeps as before. */
+TU_TEST(a_radio_step_due_without_an_interrupt_asks_for_the_next_pass)
+{
+    boot(12u);
+    TU_EQ(App_PollAgain(), 0);
+    fakeRadioPollAgain = 1;
+    TU_EQ(App_PollAgain(), 1);
+    fakeRadioPollAgain = 0;
+    TU_EQ(App_PollAgain(), 0);
+}
+
 int main(void)
 {
     static const Tu_Test tests[] = {
@@ -619,7 +631,9 @@ int main(void)
          after_a_reset_the_radio_holds_the_empty_source_match_table},
         {"the_counters_keep_their_period_across_the_tick_wrap", the_counters_keep_their_period_across_the_tick_wrap},
         {"a_setter_that_keeps_failing_does_not_stop_the_radio", a_setter_that_keeps_failing_does_not_stop_the_radio},
-        {"a_link_that_refuses_for_a_while_answers_again", a_link_that_refuses_for_a_while_answers_again}};
+        {"a_link_that_refuses_for_a_while_answers_again", a_link_that_refuses_for_a_while_answers_again},
+        {"a_radio_step_due_without_an_interrupt_asks_for_the_next_pass",
+         a_radio_step_due_without_an_interrupt_asks_for_the_next_pass}};
 
     Tu_Run("rcp_app", tests, (int)(sizeof(tests) / sizeof(tests[0])));
     return 0; /* Tu_Run never returns */

@@ -24,4 +24,7 @@ uint32_t RcpApp_TxDropped(void);
 /* The session's health (session.h Rcp_Healthy), with one record where it turns bad. */
 int RcpApp_Healthy(uint32_t ms);
 
+/* The radio's step due without an interrupt (radio.h Radio_PollAgain), once the radio is up. */
+int RcpApp_PollAgain(void);
+
 #endif

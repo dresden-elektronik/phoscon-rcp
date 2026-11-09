@@ -205,6 +205,9 @@ void Radio_SetTxDoneHandler(void (*fn)(void *token, int status, int framePending
 /* Read a finished RX frame into the ring and deliver it, report TX completion;
  * once per main-loop pass. */
 void Radio_Poll(void);
+/* After Radio_Poll: 1 when its next step waits on a state no interrupt announces, so the loop runs
+ * the next pass at once instead of sleeping until a tick or a host-link frame, up to 1 ms away. */
+int Radio_PollAgain(void);
 void Radio_GetCounters(Radio_Counters *out);
 
 /* Monotonic microseconds, 1 ms resolution (from the millisecond tick;

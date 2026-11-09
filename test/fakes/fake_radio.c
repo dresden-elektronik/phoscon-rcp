@@ -19,6 +19,7 @@ uint8_t fakeRadioChannel = RADIO_CHAN_MIN;
 uint8_t fakeRadioTxChannel;
 uint32_t fakeRadioSrcMatchPushes;
 int fakeRadioAddrFails;
+int fakeRadioPollAgain;
 uint8_t fakeRadioSrcMatchEnabled;
 uint8_t fakeRadioSrcMatchShorts;
 
@@ -40,6 +41,7 @@ void Fake_RadioReset(void)
     fakeTxOpen = 0;
     fakeTxQueued = 0;
     fakeRadioAddrFails = 0;
+    fakeRadioPollAgain = 0;
 }
 
 int Radio_Init(void)
@@ -236,6 +238,11 @@ void Radio_Poll(void)
 
     if (fakeTxDoneHandler != 0)
         fakeTxDoneHandler(fakeTxToken, fakeTxStatus, 0);
+}
+
+int Radio_PollAgain(void)
+{
+    return fakeRadioPollAgain;
 }
 
 void Radio_GetCounters(Radio_Counters *out)

@@ -1354,6 +1354,12 @@ void Radio_Poll(void)
     railDeliver();
 }
 
+/* No phase here waits on a state without an interrupt: the loop's usual wake-ups serve every step. */
+int Radio_PollAgain(void)
+{
+    return 0;
+}
+
 void Radio_GetCounters(Radio_Counters *out)
 {
     if (out == 0)
