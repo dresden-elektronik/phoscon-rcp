@@ -22,9 +22,17 @@ const uint8_t *FlasherTrap_Ack(void)
     return flasherAckFrame;
 }
 
+#define HDLC_FLAG 0x7Eu
+#define SPINEL_HEADER_MASK 0xC0u
+#define SPINEL_HEADER_FLAG 0x80u
+
 static uint8_t tail[FLASHER_TRAP_TAIL];
 static uint8_t tailPos;
 static uint32_t tailCount;
+/* Where the stream is: just past a flag, inside a Spinel frame, or anywhere else. */
+static uint8_t afterFlag;
+static uint8_t inSpinel;
+static uint32_t lastFeedMs;
 /* Written from the link interrupt, read from the main loop -> volatile. The deadline is separate
  * from the flag because a monotonic deadline can legitimately be 0. */
 static volatile uint32_t armedAtMs;
@@ -52,9 +60,38 @@ int FlasherTrap_Feed(const uint8_t *buf, uint16_t len)
     if (buf == 0)
         return 0;
 
+    Tick_GetMs(&now);
+
+    if ((uint32_t)(now - lastFeedMs) >= FLASHER_TRAP_IDLE_MS)
+        inSpinel = 0u;
+
+    lastFeedMs = now;
+
     for (i = 0; i < len; ++i)
     {
-        tail[tailPos] = buf[i];
+        uint8_t b = buf[i];
+
+        if (b == HDLC_FLAG)
+        {
+            inSpinel = 0u;
+            afterFlag = 1u;
+            tailCount = 0u;
+            continue;
+        }
+
+        if (afterFlag)
+        {
+            afterFlag = 0u;
+            inSpinel = ((b & SPINEL_HEADER_MASK) == SPINEL_HEADER_FLAG) ? 1u : 0u;
+        }
+
+        if (inSpinel)
+        {
+            tailCount = 0u;
+            continue;
+        }
+
+        tail[tailPos] = b;
         tailPos = (uint8_t)((tailPos + 1u) & (FLASHER_TRAP_TAIL - 1u));
         tailCount++;
     }
@@ -65,7 +102,6 @@ int FlasherTrap_Feed(const uint8_t *buf, uint16_t len)
     if (!tailMatchesFrame())
         return 0;
 
-    Tick_GetMs(&now);
     armedAtMs = now + FLASHER_TRAP_DELAY_MS;
     armed = 1;
 

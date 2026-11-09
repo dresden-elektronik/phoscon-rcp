@@ -5,7 +5,7 @@
 
 #include "flasher_trap.h"
 
-/* The module reads the tick only when the frame matches, so the suite owns time. */
+/* The module reads the tick on every feed, for the idle link that ends a frame, so the suite owns time. */
 static uint32_t fakeMs;
 
 void Tick_GetMs(uint32_t *ms)
@@ -62,6 +62,46 @@ int main(void)
     /* A short feed cannot match. */
     check("15 bytes do not arm", FlasherTrap_Feed(frame, 15u) == 0);
     check("no null deref", FlasherTrap_Feed(0, 16u) == 0);
+
+    /* Inside a Spinel frame the bytes are a payload, however they read: a transmit request whose PSDU
+     * ends in the frame, at the end of a packet, must not reset the board. None of the 16 octets is
+     * one HDLC escapes, so they cross the link inside a payload unchanged. */
+    {
+        static const uint8_t spinelHead[] = {0x7Eu, 0x81u, 0x03u, 0x71u, 0x30u, 0x00u, 0x41u, 0x88u};
+        static const uint8_t spinelEnd[] = {0x12u, 0x34u, 0x7Eu};
+
+        check("a Spinel frame's head", FlasherTrap_Feed(spinelHead, (uint16_t)sizeof(spinelHead)) == 0);
+        check("the frame inside a Spinel payload does not arm", FlasherTrap_Feed(frame, 16u) == 0);
+        check("nothing due from a payload", FlasherTrap_Due(fakeMs + FLASHER_TRAP_DELAY_MS) == 0);
+        check("the Spinel frame ends", FlasherTrap_Feed(spinelEnd, (uint16_t)sizeof(spinelEnd)) == 0);
+
+        /* Between frames the trap listens again. */
+        check("the frame after a finished Spinel frame arms", FlasherTrap_Feed(frame, 16u) == 1);
+        check("and is due", FlasherTrap_Due(fakeMs + FLASHER_TRAP_DELAY_MS) == 1);
+
+        /* A host that died mid-frame leaves no closing flag: the flasher's frame, which comes only
+         * after the port was closed and opened again, follows an idle link and must still arm. */
+        check("an unfinished Spinel frame", FlasherTrap_Feed(spinelHead, (uint16_t)sizeof(spinelHead)) == 0);
+        check("no gap: still a payload", FlasherTrap_Feed(frame, 16u) == 0);
+        fakeMs += FLASHER_TRAP_IDLE_MS;
+        check("after an idle link the frame arms", FlasherTrap_Feed(frame, 16u) == 1);
+        check("and is due", FlasherTrap_Due(fakeMs + FLASHER_TRAP_DELAY_MS) == 1);
+    }
+
+    /* GCFFlasher -r queries the version first: two SLIP frames back to back, the reset frame second. */
+    {
+        static const uint8_t versionQuery[] = {0xC0u, 0x0Du, 0x02u, 0x00u, 0x09u, 0x00u,
+                                               0x00u, 0x00u, 0x00u, 0x00u, 0xE8u, 0xFFu, 0xC0u};
+        uint8_t both[sizeof(versionQuery) + 16u];
+
+        for (i = 0u; i < (uint16_t)sizeof(versionQuery); ++i)
+            both[i] = versionQuery[i];
+        for (i = 0u; i < 16u; ++i)
+            both[sizeof(versionQuery) + i] = frame[i];
+
+        check("version query then reset arms", FlasherTrap_Feed(both, (uint16_t)sizeof(both)) == 1);
+        check("and is due", FlasherTrap_Due(fakeMs + FLASHER_TRAP_DELAY_MS) == 1);
+    }
 
     /* The reply: the request's command and sequence, the parameter where GCFFlasher reads it (byte 7 of
      * the unframed packet), and a checksum the flasher's own rule accepts - the 16-bit sum of every

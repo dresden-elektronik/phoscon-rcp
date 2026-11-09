@@ -71,7 +71,7 @@ A bidirectional byte pipe carrying HDLC-framed Spinel in both directions. The li
 - **No hardware flow control.** A host leaves it off: with it on, a stock OpenThread host's first exchange with a ConBee III times out.
 - **An FTDI bridge holds received bytes for its latency timer**, 16 ms by default on Linux, so a peer's quick reply can reach a host in one read with the Ack before it: an OpenThread host then handles the reply first and counts a good Enhanced Ack as failed. As root: `echo 1 > /sys/bus/usb-serial/devices/<ttyUSBn>/latency_timer`, until the stick is replugged.
 - **An OpenThread host** takes `spinel+hdlc+uart://<port>?uart-baudrate=<line rate>&uart-init-deassert`. A board the table above does not mark as a Thread host needs `skip-rcp-compatibility-check`.
-- The same byte stream carries GCFFlasher's 16-byte reset frame. It contains no `0x7E`, so the HDLC decoder ignores it; the RCP recognises it separately and resets into the bootloader.
+- The same byte stream carries GCFFlasher's 16-byte reset frame. It contains no `0x7E`, so the HDLC decoder ignores it; the RCP recognises it separately and resets into the bootloader. It is recognised only outside a Spinel frame: from a flag followed by a header octet up to the next flag, the same octets are a payload, such as a datagram in a transmit request. A link idle for 50 ms also ends a frame, so the flasher still gets through after a host that died mid-frame.
 
 ## 3. HDLC framing
 

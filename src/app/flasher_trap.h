@@ -8,7 +8,12 @@
  * running image resets itself so the bootloader's window opens.
  *
  * The frame is matched by content rather than parsed, because that stream also carries records or
- * HDLC-framed Spinel and the frame may arrive split across USB packets. Feed() runs in the link
+ * HDLC-framed Spinel and the frame may arrive split across USB packets. It is matched only outside a
+ * Spinel frame: none of its octets is one HDLC escapes, so inside a frame - a transmit request's PSDU,
+ * which a Thread host sends in plaintext for this image to secure - the same octets are a payload, and
+ * a datagram from the air must not reset the board. A Spinel frame begins at a flag followed by a
+ * header octet (10xxxxxx; the flasher's frames begin with 0xC0) and ends at the next flag, or at an
+ * idle link, which is what a host that died mid-frame leaves before the flasher opens the port. Feed() runs in the link
  * interrupt and only touches bytes and a deadline; the reset itself is the main loop's, so it happens
  * after the transfer completes instead of during it. Where the bootloader itself handles that
  * WRITE_PARAMETER frame, the flasher has a second, independent way in - it can arm this app's
@@ -22,6 +27,10 @@
 
 /* The frame, plus a frame's worth behind it, so a frame that straddles packets is still contiguous. */
 #define FLASHER_TRAP_TAIL 32u
+
+/* A link silent this long ends a Spinel frame left unfinished: a host writes a frame in one go, and
+ * the flasher only starts after the host has closed the port. */
+#define FLASHER_TRAP_IDLE_MS 50u
 
 /* Deferred by this much so the reset lands while the flasher is already waiting for the window. */
 #define FLASHER_TRAP_DELAY_MS 300u
