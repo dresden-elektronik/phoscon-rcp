@@ -42,7 +42,7 @@ The numbers below are computed by this tree's code and pinned by its suites (`mg
 | item | rule |
 |---|---|
 | peripheral clocks | there is no clock-enable register: a peripheral is enabled by its own `EN`, and the CMU only selects each group's *source*. `EM01GRPACLKCTRL` resets to an oscillator this board does not run, so it must be written |
-| interrupt flags | a write to `IF` does nothing; set and clear go through the `IF_SET` and `IF_CLR` aliases at `+0x1000` and `+0x2000`. A stale `TXC` or an uncleared `RXOF` otherwise wedges the UART |
+| interrupt flags | a write to `IF` does nothing; set and clear go through the `IF_SET` and `IF_CLR` aliases at `+0x1000` and `+0x2000`. A stale `TXC` or an uncleared `RXOF` otherwise wedges the UART. `TXC` is cleared when a chunk is armed, not after its last octet: a vector held past that octet's time on the wire would erase the chunk's only `TXC` |
 | pad routing | a USART's pads are chosen in `GPIO->USARTROUTE[n]`, not in the USART: RX on PB0, TX on PB1 |
 | locks | three blocks, three keys: `CMU` `0x93F7`, `WDOG0` `0xABE8`, `HFXO0` `0x580E`. A key in the wrong block leaves it locked and its writes silently ignored |
 | oscillator | no enable bit: the mode decides, and `STATUS.RDY` (not `ENS`) says it runs |

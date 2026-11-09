@@ -207,9 +207,11 @@ void Uart_SetRxHandler(Uart_DataInFn fn)
 
 /* Only TXBL is armed: it is a level flag, so the vector is entered while the buffer has room. TXC is
  * sticky and is set by every idle line, including the one the previous chunk left, so it is cleared
- * and enabled only once the last octet of this chunk is in the buffer (USART0_TX_Handler). */
+ * here, before the chunk's first octet, and enabled once its last one is in the buffer
+ * (USART0_TX_Handler). */
 static void uartArmTx(void)
 {
+    MG21_USART0_IF_CLR = MG21_USART_IF_TXC;
     MG21_USART0->IEN |= MG21_USART_IEN_TXBL;
 }
 
@@ -352,7 +354,12 @@ void USART0_RX_Handler(void)
 
 /* Two phases per chunk, told apart by which interrupt is enabled: TXBL feeds octets while the buffer
  * has room, and after the last one TXC waits for the line to go idle. The flag word alone cannot tell
- * them apart, because TXBL stays set whenever the buffer is empty and TXC stays set until cleared. */
+ * them apart, because TXBL stays set whenever the buffer is empty and TXC stays set until cleared.
+ *
+ * TXC is not cleared here. A higher-priority vector can hold this one past the last octet's own time
+ * on the wire - 87 us at 115 200 Bd - and a clear after that wipes the only TXC the chunk gets, which
+ * leaves the pipe ARMED for good. Cleared at arm time instead, a TXC from a gap mid-chunk can end the
+ * chunk early, while its last octet is still going out, and the next chunk only queues behind it. */
 void USART0_TX_Handler(void)
 {
     uint32_t flags = MG21_USART0->IF;
@@ -368,10 +375,7 @@ void USART0_TX_Handler(void)
 
         if (uartTxAt >= uartTxLen)
         {
-            /* The last octet is in the buffer, so the line cannot be idle until it has gone: a TXC
-             * set before this point is stale, and the next one is this chunk's. */
             MG21_USART0->IEN &= ~MG21_USART_IEN_TXBL;
-            MG21_USART0_IF_CLR = MG21_USART_IF_TXC;
             MG21_USART0->IEN |= MG21_USART_IEN_TXC;
         }
     }
