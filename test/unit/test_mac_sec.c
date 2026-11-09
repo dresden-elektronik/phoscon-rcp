@@ -375,6 +375,66 @@ TU_TEST(init_forgets_the_keys)
     TU_EQ(state.curr.roundKey[20], 0u);
 }
 
+/* The lock the glue installs, recorded: how often it is taken, and the state as the unlock finds it. */
+static int lockDepth;
+static int lockCalls;
+static MacSec_State seenAtUnlock;
+
+static void recordLock(void)
+{
+    lockDepth++;
+    lockCalls++;
+}
+
+static void recordUnlock(void)
+{
+    seenAtUnlock = state;
+    lockDepth--;
+}
+
+/* A RESET runs MacSec_Init while the radio interrupt may be building an Enhanced Ack from the same
+ * state. Whatever that Ack reads must change inside the lock, so it sees the keys or no keys, never a
+ * state half cleared: hasKeys, the key index, both counters, and the probe table, which the interrupt
+ * reads without looking at hasKeys. The keys themselves may go afterwards, with nothing left to gate. */
+TU_TEST(init_clears_what_an_ack_reads_under_the_lock)
+{
+    static const uint8_t probe[2u + MAC_SEC_EXT_LEN + 1u] = {0x34u, 0x12u, 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u,
+                                                             MAC_SEC_PROBE_LQI};
+    uint8_t i;
+
+    freshState();
+    TU_EQ(MacSec_SetProbe(&state, probe, sizeof(probe)), 1);
+    TU_EQ(state.hasKeys, 1u);
+
+    {
+        uint8_t *p = (uint8_t *)&seenAtUnlock;
+        uint16_t k;
+
+        for (k = 0u; k < sizeof(seenAtUnlock); ++k)
+            p[k] = 0xFFu; /* so a lock never released cannot pass for a clean one */
+    }
+
+    lockCalls = 0;
+    MacSec_SetLock(recordLock, recordUnlock);
+    MacSec_Init(&state);
+    MacSec_SetLock(0, 0);
+
+    TU_EQ(lockCalls, 1);
+    TU_EQ(lockDepth, 0);
+    TU_EQ(seenAtUnlock.hasKeys, 0u);
+    TU_EQ(seenAtUnlock.keyIndex, 0u);
+    TU_EQ(seenAtUnlock.frameCounter, 0u);
+    TU_EQ(seenAtUnlock.prevFrameCounter, 0u);
+
+    for (i = 0u; i < MAC_SEC_PROBE_MAX; ++i)
+        TU_EQ(seenAtUnlock.probes[i].metrics, 0u);
+
+    /* And once it returns, nothing of the keys is left. */
+    TU_EQ(state.curr.key[1], 0u);
+    TU_EQ(state.next.roundKey[20], 0u);
+    TU_EQ(state.probes[0].shortAddr, 0u);
+}
+
 /* What each frame's Ack must be: version 2, secured, the frame's source as its destination. The expected
  * bytes come from an independent AES-CCM, as above. */
 static uint8_t ack[MAC_SEC_ACK_MAX];
@@ -701,6 +761,7 @@ int main(void)
         {"the_counter_property_honours_set_if_larger", the_counter_property_honours_set_if_larger},
         {"a_malformed_key_value_is_refused_and_changes_nothing", a_malformed_key_value_is_refused_and_changes_nothing},
         {"init_forgets_the_keys", init_forgets_the_keys},
+        {"init_clears_what_an_ack_reads_under_the_lock", init_clears_what_an_ack_reads_under_the_lock},
         {"a_secured_frame_gets_a_secured_enhanced_ack", a_secured_frame_gets_a_secured_enhanced_ack},
         {"the_ack_in_two_steps_is_the_same_ack", the_ack_in_two_steps_is_the_same_ack},
         {"an_unsecured_frames_ack_has_no_mic_to_wait_for", an_unsecured_frames_ack_has_no_mic_to_wait_for},

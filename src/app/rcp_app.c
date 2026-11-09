@@ -771,10 +771,13 @@ void RcpApp_Init(void)
     id.txPowerMaxCh26Dbm = Board_Get()->txPowerMaxCh26Dbm;
     /* The session keeps the pointer, not the bytes, so this is static. */
     id.hwAddr = Nvram_FactoryEui64(factoryEui64) ? factoryEui64 : 0;
+    Rcp_Init(&rcpSession, &id);
 #ifdef RCP_THREAD
+    /* After the first init, which no interrupt can race: the radio is not up yet, and the lock is the
+     * global mask, which does not nest - taken here, its unlock would enable interrupts that a HAL_Init
+     * gone wrong left masked on purpose (hal/mg21/hal_mg21.c, no board clock). */
     MacSec_SetLock(rcpAppMacSecLock, rcpAppMacSecUnlock);
 #endif
-    Rcp_Init(&rcpSession, &id);
     /* Without a sink a SET STREAM_RAW answers INVALID_STATE (docs/protocol.md §7.1). */
     Rcp_SetTxSink(&rcpSession, rcpAppTxSink, 0);
     Hdlc_RxInit(&rcpHdlc);

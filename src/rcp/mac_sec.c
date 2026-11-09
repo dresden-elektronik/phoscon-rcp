@@ -74,13 +74,26 @@ static void macSecWriteU32(uint8_t *p, uint32_t v)
 
 void MacSec_Init(MacSec_State *s)
 {
+    uint8_t i;
+
     if (s == 0)
         return;
 
+    /* A RESET comes here while the radio interrupt may be building an Ack from this state: what that
+     * Ack reads changes under the lock, so it finds the keys or no keys and never a state half cleared.
+     * The probe table is read without a look at hasKeys, so its slots close here too. The keys are
+     * wiped after the unlock, with nothing left that would use them - a few stores under the mask
+     * instead of the whole state. */
+    macSecLock();
     s->hasKeys = 0u;
     s->keyIndex = 0u;
     s->frameCounter = 0u;
     s->prevFrameCounter = 0u;
+
+    for (i = 0u; i < MAC_SEC_PROBE_MAX; ++i)
+        s->probes[i].metrics = 0u;
+
+    macSecUnlock();
     Aes_KeyWipe(&s->prev);
     Aes_KeyWipe(&s->curr);
     Aes_KeyWipe(&s->next);
