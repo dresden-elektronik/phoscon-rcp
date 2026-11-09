@@ -18,54 +18,9 @@ int HAL_Init(void);
 /* ---- System ---- */
 void HAL_SystemReset(void);
 
-/* The four core instructions (coding-rules.md §1), one set per instruction set. */
-#if defined(__AVR__)
-
-/* Sleeps in the mode the board's SMCR selects (its SE bit set at init). */
-static inline void HAL_Wfi(void)
-{
-    __asm__ volatile("sleep" ::: "memory");
-}
-
-/* The AVR core has no write buffer to drain: a compiler barrier is all a barrier needs to be. */
-static inline void HAL_Dsb(void)
-{
-    __asm__ volatile("" ::: "memory");
-}
-
-static inline void HAL_IrqLock(void)
-{
-    __asm__ volatile("cli" ::: "memory");
-}
-
-static inline void HAL_IrqUnlock(void)
-{
-    __asm__ volatile("sei" ::: "memory");
-}
-
-#else
-
-static inline void HAL_Wfi(void)
-{
-    __asm__ volatile("wfi");
-}
-
-static inline void HAL_Dsb(void)
-{
-    __asm__ volatile("dsb 0xf" ::: "memory");
-}
-
-static inline void HAL_IrqLock(void)
-{
-    __asm__ volatile("cpsid i" ::: "memory");
-}
-
-static inline void HAL_IrqUnlock(void)
-{
-    __asm__ volatile("cpsie i" ::: "memory");
-}
-
-#endif
+/* The four core instructions (coding-rules.md §1): HAL_Wfi, HAL_Dsb, HAL_IrqLock, HAL_IrqUnlock. One
+ * copy per instruction set, and the target's include path names it (hal/cortex_m/, hal/avr/). */
+#include "hal_core.h"
 
 /* ---- Timers ---- */
 /* Bring-up stopwatch wait hook: called by every bounded wait; a no-op until the

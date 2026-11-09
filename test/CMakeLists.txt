@@ -20,6 +20,7 @@ add_executable(test_dbg_queue
 )
 target_include_directories(test_dbg_queue PRIVATE
   ${CMAKE_SOURCE_DIR}/src/hal
+  ${CMAKE_SOURCE_DIR}/test/fakes
   ${CMAKE_SOURCE_DIR}/src/lib/u_bstream
 )
 target_compile_options(test_dbg_queue PRIVATE -Wall -Wextra -std=c99)
@@ -268,6 +269,7 @@ add_executable(test_flasher_trap
 target_include_directories(test_flasher_trap PRIVATE
   ${CMAKE_SOURCE_DIR}/src/app
   ${CMAKE_SOURCE_DIR}/src/hal
+  ${CMAKE_SOURCE_DIR}/test/fakes
 )
 target_compile_options(test_flasher_trap PRIVATE -Wall -Wextra -std=c99)
 add_test(NAME flasher_trap COMMAND test_flasher_trap)

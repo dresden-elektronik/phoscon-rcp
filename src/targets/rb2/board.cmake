@@ -31,7 +31,7 @@ set(DS_HAL_SOURCES
   ${DS_SRC_DIR}/hal/samr21/samr21_panic.c
   ${DS_SRC_DIR}/hal/samr21/hal_samr21.c
 )
-set(DS_INCLUDE_DIRS ${DS_SRC_DIR}/hal/samr21)
+set(DS_INCLUDE_DIRS ${DS_SRC_DIR}/hal/samr21 ${DS_SRC_DIR}/hal/cortex_m)
 
 # This board's host link and everything under it: `com/com_uart.c` implements the COM_* contract
 # (hal/com.h) over the SERCOM USART driver in hal/samr21/samr21_uart.c. There is no USB device

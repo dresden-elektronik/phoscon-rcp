@@ -156,5 +156,5 @@ endif()
 
 set(DS_STARTUP ${CB3_STARTUP})
 set(DS_HAL_SOURCES ${CB3_HAL})
-set(DS_INCLUDE_DIRS ${DS_SRC_DIR}/hal/mg21)
+set(DS_INCLUDE_DIRS ${DS_SRC_DIR}/hal/mg21 ${DS_SRC_DIR}/hal/cortex_m)
 set(DS_LINK_SOURCES ${CB3_LINK})

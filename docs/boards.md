@@ -43,7 +43,7 @@ A board is data plus the paths that name its silicon and its link. `-DDEBOARD=<b
 
 | file in `src/targets/<board>/` | provides |
 |---|---|
-| `board.cmake` | the sources (`DS_STARTUP`, `DS_HAL_SOURCES`, `DS_LINK_SOURCES`), include paths, the linker script and the flash layout (`DS_DEFAULT_ORIGIN`, `DS_IMAGE_BOUND`); for a vendor radio library, its compile and link options |
+| `board.cmake` | the sources (`DS_STARTUP`, `DS_HAL_SOURCES`, `DS_LINK_SOURCES`), include paths (`DS_INCLUDE_DIRS`: the silicon layer, and the core's `hal_core.h` directory), the linker script and the flash layout (`DS_DEFAULT_ORIGIN`, `DS_IMAGE_BOUND`); for a vendor radio library, its compile and link options |
 | `board.c`, `board.h` | the descriptor behind `src/board/board.h`: identity, link, radio, flash layout |
 | `product.h` | the identity on the wire |
 | linker scripts | one per app origin |
