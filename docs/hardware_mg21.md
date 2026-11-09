@@ -83,7 +83,7 @@ How it works:
 - **Install.** The radio clock first (a radio access faults while it is gated), then the program, the vectors, the block enables, the bring-up table, the part's own IR calibration pair from `DEVINFO+0x248`, and the channel tune.
 - **Receive.** The CPU polls the receive buffer; a record is the length octet, the PSDU without FCS, RSSI and a status octet. The FCS is recomputed, the address filter runs in software, and an overflow is recovered by the CPU.
 - **Transmit** starts from `OFF`: the frame goes into the transmit buffer, the program brings the 10 dBm PA up, and a frame that asks for an Ack keeps the receiver on through the turnaround.
-- **Before every reset** the radio is handed back (`Mg21Radio_Release`): a radio left running across a watchdog reset leaves the stick silent until a power cycle.
+- **Before every reset** the radio is handed back (`Mg21Radio_Release`).
 
 Measured with the `rcp` image on this back-end against a ConBee II: promiscuous receive 20 of 20 on two channels, the address filter right in every case, transmit 20 of 20, and an Ack-requesting frame answered.
 
@@ -121,7 +121,7 @@ The deSiLabs bootloader serves three products, told apart by the DeviceConfig in
 
 ![A sequence between GCFFlasher, the running image and the bootloader. The flasher sends the reset frame, WRITE_PARAMETER 0x26 for the watchdog TTL, to the running image. The image hands back its clocks, the UART and its pads, then lets the watchdog reset the board into the bootloader; this step is amber. About 2.3 s after the frame the bootloader sends its ID packet unsolicited, 81 82 with its version and the app CRC. The flasher sends the update request, 81 03, with size, target, type 61 and CRC-32, and the bootloader answers 81 83 with a status. For every page the bootloader sends a data request, 81 04 with offset and length, and the flasher answers 81 84 with one 256-byte page. The bootloader then installs: it checks, erases, decrypts and writes. The flasher sends an ID request, 81 02, and the bootloader's 81 82 carries the app CRC, which equals the image's: app checksum OK.](images/cb3-update.png)
 
-*Figure 2 — updating a ConBee III. Amber is the hand-back: without it the watchdog reset leaves the stick silent until a power cycle. Source: `tools/diagrams/cb3_update.py`.*
+*Figure 2 — updating a ConBee III. Amber is the hand-back. Source: `tools/diagrams/cb3_update.py`.*
 
 - **The container** is nested: an outer GCF of type 60 carrying an inner container whose product magic must equal the DeviceID (`0xDEC0DE03` for the ConBee III) and whose image is AES-encrypted, type 61..65. A plain image (type 60 inside) is not installed. `docs/build-and-flash.md` has the packaging.
 - **The layout:** bootloader `0x0000..0x3FFF`; the app from `0x4000` to `0x7BFF0`, where the bootloader writes a 16-byte AppInfo trailer; the staging area for an update to `0xF7FFF`; NVM3 above. The image guard is therefore 491 504 B.

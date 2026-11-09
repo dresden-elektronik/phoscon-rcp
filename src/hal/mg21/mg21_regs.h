@@ -398,8 +398,7 @@ typedef struct
 
 /* ---- Radio subsystem: what a hand-back before a reset needs ----
  * The radio blocks are the radio driver's (docs/hardware_mg21.md §10.4); this is only the subset an
- * image needs to switch them off again, because a radio left running survives a soft reset and the
- * bootloader that runs next does not answer until a power cycle (docs/hardware_mg21.md §10.5).
+ * image needs to switch them off again before a reset (docs/hardware_mg21.md §10.5).
  * Checked against test/data/mg21_radio_ref.h by the mg21_regs suite. Every block has EN at +0x04,
  * bit 0; BUFC sits in the peripheral window, the others in the radio window. */
 #define MG21_RAC_BASE 0xB8020000u

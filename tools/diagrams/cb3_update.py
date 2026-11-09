@@ -4,9 +4,8 @@
 """How a running ConBee III image is updated, owned by docs/hardware_mg21.md section 10.7.
 
 A sequence between GCFFlasher, the running image and the deSiLabs bootloader: the flasher's reset
-frame, the image's hand-back and watchdog reset - the subject, in amber, because without the
-hand-back the stick goes silent - the bootloader's unsolicited ID, the update request, the page
-loop, the install and the check of the app CRC.
+frame, the image's hand-back and watchdog reset - the subject, in amber - the bootloader's
+unsolicited ID, the update request, the page loop, the install and the check of the app CRC.
 
     python3 tools/diagrams/cb3_update.py            # docs/images/cb3-update.png
     python3 tools/diagrams/cb3_update.py --check

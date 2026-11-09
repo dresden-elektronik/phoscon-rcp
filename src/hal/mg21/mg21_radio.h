@@ -11,8 +11,8 @@
 #define MG21_RADIO_H
 
 /* Hand the radio back before a reset, whatever drives it: the back-end stops its own activity, then
- * the radio subsystem is switched off (Mg21Radio_Off). A radio left running survives a soft reset, and
- * the bootloader that runs next does not answer until a power cycle (docs/hardware_mg21.md §10.5).
+ * the radio subsystem is switched off (Mg21Radio_Off), so the bootloader that runs next finds it in
+ * its reset state (docs/hardware_mg21.md §10.5).
  * Does nothing while the radio clock is off. Called with interrupts masked, from
  * hal/mg21/hal_mg21.c HAL_SystemReset. */
 void Mg21Radio_Release(void);
