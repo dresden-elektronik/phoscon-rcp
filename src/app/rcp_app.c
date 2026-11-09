@@ -175,7 +175,9 @@ static void rcpAppEmitCounters(void)
     Tick_GetMs(&now);
 
 #if defined(DS_BOARD_DIAG) || defined(DS_RADIO_WITNESS)
-    if (nextRxAtMs == 0u || now >= nextRxAtMs)
+    /* Modular, as every deadline here (docs/architecture.md §7): a plain compare is overdue on every
+     * pass of the period before the 49.7-day wrap. */
+    if (nextRxAtMs == 0u || (int32_t)(now - nextRxAtMs) >= 0)
     {
         nextRxAtMs = now + 30000u;
         Radio_Witnesses();
@@ -191,7 +193,7 @@ static void rcpAppEmitCounters(void)
         return;
     }
 
-    if (now < nextAtMs)
+    if ((int32_t)(now - nextAtMs) < 0)
         return;
 
     nextAtMs = now + 5000u;

@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 #include "app_main.h"
+#include "dbg.h"
 #include "fakes.h"
 #include "hdlc.h"
 #include "props.h"
@@ -483,6 +484,49 @@ TU_TEST(after_a_reset_the_radio_holds_the_empty_source_match_table)
     TU_EQ(fakeRadioSrcMatchEnabled, 0u);
 }
 
+static uint32_t counterRecords;
+
+static void countCounters(uint16_t component, uint16_t line, uint16_t reason)
+{
+    (void)line;
+
+    if (component == DBG_COMP_APP && reason == DBG_APP_RSN_FRAMES_RX)
+        counterRecords++;
+}
+
+/* The tick wraps after 49.7 days, and a deadline must hold across it (docs/architecture.md §7): with the
+ * record stream on, the counters go out once every 5 s, not on every pass of the seconds before the
+ * wrap. 30 s of 100 ms passes from 3 s before it. */
+TU_TEST(the_counters_keep_their_period_across_the_tick_wrap)
+{
+    static const uint8_t on = 1u;
+    uint16_t i;
+
+    boot(10u);
+    request(3u, SPINEL_CMD_PROP_VALUE_SET, PROPS_ID_RCP_LOG_CRASH_DUMP, &on, 1u);
+    pass(1u);
+
+    /* Toward the wrap as a running tick gets there: no step longer than the 24.8 days a modular deadline
+     * can see back, each with a pass that takes it. */
+    while (fakeNowMs < 0xFFFFFFFFuL - 3000u - 0x40000000uL)
+        pass(0x40000000uL);
+
+    /* The counters go out 3 s before the wrap, so their next deadline is past it. */
+    counterRecords = 0u;
+    Debug_SetSink(countCounters);
+    fakeNowMs = 0xFFFFFFFFuL - 3000u - 1u;
+    pass(1u);
+    TU_EQ(counterRecords, 1u);
+
+    for (i = 0u; i < 300u; ++i)
+        pass(100u);
+
+    Debug_SetSink(0);
+    TU_NOTE("counter records in 30 s across the wrap", counterRecords);
+    TU_CHECK(counterRecords >= 6u);
+    TU_CHECK(counterRecords <= 8u);
+}
+
 /* A link that refuses every write for a while: replies that do not fit are dropped, nothing waits on
  * the link, and it answers again once the link takes writes. */
 TU_TEST(a_link_that_refuses_for_a_while_answers_again)
@@ -522,6 +566,7 @@ int main(void)
          a_frame_goes_out_on_its_own_channel_and_the_receiver_stays_where_it_was_sent},
         {"after_a_reset_the_radio_holds_the_empty_source_match_table",
          after_a_reset_the_radio_holds_the_empty_source_match_table},
+        {"the_counters_keep_their_period_across_the_tick_wrap", the_counters_keep_their_period_across_the_tick_wrap},
         {"a_link_that_refuses_for_a_while_answers_again", a_link_that_refuses_for_a_while_answers_again}};
 
     Tu_Run("rcp_app", tests, (int)(sizeof(tests) / sizeof(tests[0])));
