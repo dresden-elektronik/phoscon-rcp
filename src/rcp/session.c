@@ -34,8 +34,14 @@ uint16_t Rcp_Reset(Rcp_Session *s, U_BStream *out)
 
     if (s == 0 || out == 0)
         return 0u;
-    /* docs/protocol.md §6 power-on state: radio off, channel 0, identity unchanged. */
+    /* docs/protocol.md §6 power-on state: radio off, channel 0, identity unchanged. A frame still
+     * on its way stays in flight - the radio is busy with it, and a transmit request meanwhile is
+     * answered BUSY - but its completion carries a TID from before the RESET, which a host that has
+     * started over may be waiting on for something else, so it goes unanswered. */
     Props_Init(&s->props, &s->identity);
+
+    if (s->txInFlight)
+        s->txOrphan = 1;
     n = Spinel_BuildLastStatus(out, SPINEL_STATUS_RESET_SOFTWARE);
 
     if (n == 0u)
@@ -253,6 +259,7 @@ static uint16_t rcpSetStreamRaw(Rcp_Session *s, U_BStream *out, const Spinel_Fra
     }
 
     s->txInFlight = 1;
+    s->txOrphan = 0;
     s->txTid = f->tid;
     s->txWatched = 0;
     s->txLimitMs = limitMs;
@@ -283,6 +290,7 @@ void Rcp_SetTxSink(Rcp_Session *s, Rcp_TxSink sink, void *ctx)
     s->txSink = sink;
     s->txCtx = ctx;
     s->txInFlight = 0;
+    s->txOrphan = 0;
 #ifdef RCP_THREAD
     s->txAck = 0;
 #endif
@@ -304,6 +312,12 @@ uint16_t Rcp_TxDone(Rcp_Session *s, uint8_t tid, int radioStatus, int framePendi
         return 0u;
 
     s->txInFlight = 0;
+
+    if (s->txOrphan)
+    {
+        s->txOrphan = 0;
+        return 0u;
+    }
 
     switch (radioStatus)
     {

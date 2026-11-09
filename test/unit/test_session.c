@@ -995,6 +995,48 @@ TU_TEST(a_timed_transmission_is_not_stuck_before_its_moment)
     TU_EQ(Rcp_Healthy(&session, RCP_TX_STUCK_MS + 1u), 0);
 }
 
+/* A host RESET while a frame is still on its way. The radio is still sending it, so a new transmit
+ * request is answered BUSY until it is done - the truth about the radio. But its completion belongs to
+ * a session that no longer exists: answered, it would put a TID from before the RESET in front of a
+ * host that has started over and may be waiting on that TID for something else. */
+TU_TEST(a_reset_during_a_transmission_drops_its_completion)
+{
+    static const uint8_t psdu[3] = {0x01u, 0x00u, 0x42u};
+    static const uint8_t reset[2] = {0x81u, 0x01u};
+    uint8_t payload[64];
+    uint8_t reply[OUT];
+    U_BStream bs;
+    uint16_t n;
+
+    freshSession();
+    sinkCalls = 0;
+    sinkRefuse = 0;
+    Rcp_SetTxSink(&session, fakeSink, 0);
+    enableRawStream();
+    (void)setStreamRaw(5u, payload, txPayload(payload, psdu, 3u, 26u, 0, 0u), reply);
+    TU_EQ(sinkCalls, 1);
+
+    TU_CHECK(feed(reset, sizeof(reset), reply) > 0u);
+
+    enableRawStream();
+    n = setStreamRaw(7u, payload, txPayload(payload, psdu, 3u, 26u, 0, 0u), reply);
+    TU_EQ(sinkCalls, 1);
+    TU_CHECK(n >= 4u);
+    TU_EQ(reply[0], 0x87u);
+    TU_EQ(reply[3], SPINEL_STATUS_BUSY);
+
+    /* The radio finishes the frame from before the RESET: nothing goes to the host. */
+    U_bstream_init(&bs, reply, OUT);
+    TU_EQ(Rcp_TxDone(&session, 5u, RADIO_TX_OK, 0, &bs), 0u);
+    TU_EQ(Rcp_Healthy(&session, 0u), 1);
+
+    /* And the radio is the host's again. */
+    (void)setStreamRaw(8u, payload, txPayload(payload, psdu, 3u, 26u, 0, 0u), reply);
+    TU_EQ(sinkCalls, 2);
+    U_bstream_init(&bs, reply, OUT);
+    TU_CHECK(Rcp_TxDone(&session, 8u, RADIO_TX_OK, 0, &bs) > 0u);
+}
+
 /* The property handler's status is the answer, not NOMEM (docs/protocol.md §5). */
 TU_TEST(a_get_that_fails_reports_the_handlers_status)
 {
@@ -1374,6 +1416,7 @@ int main(void)
         {"a_timed_transmission_has_its_delay_on_top_of_the_limit",
          a_timed_transmission_has_its_delay_on_top_of_the_limit},
         {"a_timed_transmission_is_not_stuck_before_its_moment", a_timed_transmission_is_not_stuck_before_its_moment},
+        {"a_reset_during_a_transmission_drops_its_completion", a_reset_during_a_transmission_drops_its_completion},
         {"a_reset_forgets_the_keys", a_reset_forgets_the_keys},
         {"a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header",
          a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header},

@@ -50,6 +50,9 @@ typedef struct
     Rcp_TxSink txSink;
     void *txCtx;
     int txInFlight;
+    /* 1 when a RESET came while txInFlight: the radio is still busy with the frame, but its completion
+     * belongs to the session before the RESET and is not answered. */
+    int txOrphan;
     uint8_t txTid;
     /* Rcp_Healthy's clock on the transmission in flight: cleared at submit, started on its first look. */
     int txWatched;
