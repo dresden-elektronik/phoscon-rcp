@@ -32,16 +32,9 @@ def main() -> None:
         raise SystemExit(2)
 
     if "--no-flash" not in sys.argv:
-        gcftool.package("build/fw/phoscon-rcp.bin", "cb2")
-        # Pre-flash guard: offset 0x5000, size vs NVRAM, not stale.
-        subprocess.run([".venv/bin/python", "tools/gcf_check.py",
-                        "build/fw/phoscon-rcp.bin.GCF"],
-                       check=True)
-        subprocess.run(
-            [cb2flasher.resolve(), "-d", port, "-t", "20",
-             "-f", "build/fw/phoscon-rcp.bin.GCF"],
-            check=True,
-        )
+        # Build, package and guard (board cb2) in one step; a failed build stops before packaging.
+        gcf = gcftool.build_package_guard("build/fw", "cb2")
+        subprocess.run([cb2flasher.resolve(), "-d", port, "-t", "20", "-f", gcf], check=True)
 
     cb2watch.watch(35.0)
 

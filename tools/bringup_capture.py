@@ -16,8 +16,10 @@ has been up for a minute is what loses them.
 
 The second line is the point: DBG_COMP_TIME records decode into a bring-up
 timeline in CPU cycles (dbg.h). Writes the capture to /tmp/hwrec/records.bin.
-Run tools/gcf_check.py first, as every flash path must."""
+The container is guarded against the .bin beside it (the GCF's path minus .GCF)
+before GCFFlasher starts, as on every flash path."""
 import cb2flasher
+import gcftool
 import glob, os, subprocess, sys, time, serial
 
 if len(sys.argv) < 3 or sys.argv[1] in ("-h", "--help"):
@@ -26,6 +28,10 @@ GCF   = sys.argv[1]
 PORT  = sys.argv[2]
 REPO  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT   = "/tmp/hwrec/records.bin"
+
+if not GCF.lower().endswith(".gcf") or not os.path.isfile(GCF[:-4]):
+    sys.exit(f"bringup_capture: no .bin beside {GCF} to guard it against")
+gcftool.guard(GCF, GCF[:-4], "cb2")
 
 def ports():
     return sorted(glob.glob("/dev/cu.usbmodem*"))

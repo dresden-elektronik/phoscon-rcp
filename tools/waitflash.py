@@ -60,14 +60,9 @@ def main() -> None:
     print(f"Device up ({up}) after {time.time() - t_wait:.1f} s; flashing now.",
           flush=True)
 
-    gcftool.package("build/fw/phoscon-rcp.bin", "cb2")
-    # Pre-flash guard: offset 0x5000, size vs NVRAM, not stale.
-    subprocess.run([".venv/bin/python", "tools/gcf_check.py"], check=True)
-    subprocess.run(
-        [cb2flasher.resolve(), "-d", PORT, "-t", "60",
-         "-f", "build/fw/phoscon-rcp.bin.GCF"],
-        check=True,
-    )
+    # Build, package and guard (board cb2) in one step; a failed build stops before packaging.
+    gcf = gcftool.build_package_guard("build/fw", "cb2")
+    subprocess.run([cb2flasher.resolve(), "-d", PORT, "-t", "60", "-f", gcf], check=True)
 
     cb2watch.watch(WATCH_S)
 

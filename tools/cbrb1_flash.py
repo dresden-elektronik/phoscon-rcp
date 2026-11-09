@@ -9,6 +9,7 @@ the reset frame at 57 600, changes rate inside the bootloader's 0.5 s window, an
 through the dialog of docs/hardware_avr.md §11.2.
 
   python3 tools/cbrb1_flash.py --port <port> build/fw/phoscon-rcp.bin.GCF build/fw/phoscon-rcp.bin
+  python3 tools/cbrb1_flash.py --port <port> --released phoscon-rcp-cbrb1.GCF
 """
 import argparse
 import os
@@ -73,8 +74,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", required=True)
     ap.add_argument("gcf")
-    ap.add_argument("bin", nargs="?", help="the binary the container was made from, for the guard's freshness check")
+    ap.add_argument("bin", nargs="?", help="the binary the container was made from; the guard checks the container against it")
+    ap.add_argument("--released", action="store_true",
+                    help="a released container, which comes without its .bin (docs/build-and-flash.md §12)")
     args = ap.parse_args()
+    if bool(args.bin) == args.released:
+        ap.error("name the .bin the container was made from, or say --released: one of the two")
 
     guard(args.gcf, args.bin)
     with open(args.gcf, "rb") as f:

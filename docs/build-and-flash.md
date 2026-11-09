@@ -122,7 +122,7 @@ After the bootloader's window has closed, a few seconds, ask the RCP for its ver
 .venv/bin/python tools/spinel_console.py --port <port> --no-arm --get 0x02 --duration 3
 ```
 
-On a ConBee II, `tools/killprobe.py` packages, guards and flashes in one step, `tools/waitflash.py` also waits for the board to come back, and `tools/autoflash.py <gcf> [bin]` guards, flashes and watches the boot.
+On a ConBee II, `tools/killprobe.py` builds, packages, guards and flashes in one step, and stops when the build fails. `tools/waitflash.py` does the same and also waits for the board to come back. `tools/autoflash.py <gcf> [bin] -s <serial>` guards, flashes the stick with that USB serial, and watches the boot.
 
 ### 5.1 The RaspBees on a Raspberry Pi
 
@@ -164,7 +164,7 @@ Every flash path runs `tools/gcf_check.py --board <board>` before GCFFlasher; no
 | inner shape | `cb3`: the product magic, the inner type or the inner target is wrong |
 | the `.bin`'s | the container was packed from another image: its size, or its plain-image checksum (the header CRC-8 on `cb2`, `rb2` and `cbrb1`, the inner CRC-32 on `cb3`), does not match the `.bin`; or the `.GCF` is older than the `.bin` |
 
-A released container comes without its `.bin`: `--released` runs every check that needs only the container (§12).
+A released container comes without its `.bin`: `--released` runs every check that needs only the container (§12). A wrapper never assumes it: `tools/rb2_flash.py` and `tools/cbrb1_flash.py` take the `.bin` or an explicit `--released`. The `flash_paths` suite fails when a tracked tool flashes without the guard for a named board.
 
 ## 7. Device ports
 

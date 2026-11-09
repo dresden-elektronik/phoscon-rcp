@@ -22,13 +22,17 @@ tool flashes into them unattended.
 The pre-flash guard (gcf_check.py) is mandatory here exactly as in every other
 flash path of this project: magic, type 1..10 (never plaintext), target 0x5000
 (a 0x0-offset GCF would clobber the vendor bootloader), the image must end
-before the NVRAM at 0x3EF00, and the .GCF must not be stale relative to the
-.bin. A build failure must never end up flashing yesterday's image.
+before the NVRAM at 0x3EF00, and the .GCF must be the .bin's (its size and
+CRC, and not older). A build failure must never end up flashing yesterday's image.
 
-Usage: autoflash.py PATH.GCF [PATH.bin] [-s SERIAL] [-t WAIT_S] [-n ATTEMPTS]
+The stick is named by its USB serial: several ConBee IIs share the port prefix,
+and a tool that took the first one would flash whichever enumerated first.
+
+Usage: autoflash.py PATH.GCF [PATH.bin] -s SERIAL [-t WAIT_S] [-n ATTEMPTS]
                         [--gcftmo SEC] [--dry-run]
 """
 import cb2flasher
+import gcftool
 import argparse
 import glob
 import os
@@ -38,19 +42,14 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GCFFLASHER = cb2flasher.resolve()
-GUARD = os.path.join(REPO, "tools", "gcf_check.py")
-PYTHON = os.path.join(REPO, ".venv", "bin", "python")
 
 
-def windows(serial: str | None):
-    """CDC ports currently present, filtered by serial number substring."""
-    ports = sorted(glob.glob("/dev/cu.usbmodem*"))
-    if not serial:
-        return ports
-    return [p for p in ports if serial in p]
+def windows(serial: str):
+    """CDC ports currently present whose name carries this USB serial number."""
+    return [p for p in sorted(glob.glob("/dev/cu.usbmodem*")) if serial in p]
 
 
-def wait_for_window(wait_s: float, serial: str | None):
+def wait_for_window(wait_s: float, serial: str):
     t0 = time.time()
     while time.time() - t0 < wait_s:
         ports = windows(serial)
@@ -64,9 +63,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("gcf")
     ap.add_argument("bin", nargs="?", default=None,
-                    help=".bin the .GCF must match (default: GCF minus .GCF)")
-    ap.add_argument("-s", "--serial", default=None,
-                    help="only use a port whose name contains this (a USB serial number)")
+                    help=".bin the .GCF must match (default: the GCF's path minus .GCF)")
+    ap.add_argument("-s", "--serial", required=True,
+                    help="the stick's USB serial number: only a port whose name carries it is used")
     ap.add_argument("-t", "--wait", type=float, default=90.0,
                     help="seconds to wait for a window per attempt")
     ap.add_argument("-n", "--attempts", type=int, default=1)
@@ -76,22 +75,22 @@ def main() -> int:
     args = ap.parse_args()
 
     gcf = os.path.abspath(args.gcf)
-    binf = os.path.abspath(args.bin or gcf[:-4] if gcf.endswith(".GCF") else gcf)
+    if args.bin:
+        binf = os.path.abspath(args.bin)
+    elif gcf.lower().endswith(".gcf"):
+        binf = gcf[:-4]
+    else:
+        print(f"autoflash: {gcf} does not end in .GCF: name the .bin it was made from")
+        return 2
     if not os.path.isfile(gcf):
         print(f"autoflash: no such GCF: {gcf}")
         return 2
-    if binf and not os.path.isfile(binf):
+    if not os.path.isfile(binf):
         print(f"autoflash: no such image to compare against: {binf}")
         return 2
 
-    # Mandatory guard, every attempt, before GCFFlasher is even allowed to try.
-    r = subprocess.run([PYTHON, GUARD, gcf] + ([binf] if binf else []),
-                       capture_output=True, text=True)
-    sys.stdout.write(r.stdout); sys.stdout.flush()
-    sys.stderr.write(r.stderr)
-    if r.returncode != 0:
-        print("autoflash: REFUSED - gcf_check rejected the container")
-        return 1
+    # Mandatory guard, before GCFFlasher is even allowed to try.
+    gcftool.guard(gcf, binf, "cb2")
 
     for attempt in range(1, args.attempts + 1):
         port, waited = wait_for_window(args.wait, args.serial)

@@ -43,7 +43,7 @@ Plain C99 with a small in-house harness (`test/tu/`); no dependency beyond a com
 | `samr21_basic`, `mg21_ident`, `avr_ident` | each board's identity parse |
 | `mg21_regs`, `mg21_vectors`, `avr_regs`, `cb3_layout`, `mg21_reset_record` | register transcriptions, vector tables and flash layout against the vendor's own descriptions |
 | `mg21_phy`, `mg21_rail_pa`, `mg21_radio_gen` | the ConBee III radio's arithmetic, power lookup, and generated data |
-| `gcf_guard`, `image_guard` | every rule of the pre-flash guard, each with a container that passes and one that does not; the ConBee III's image size guard on both sides of its bound |
+| `gcf_guard`, `image_guard`, `flash_paths` | every rule of the pre-flash guard, each with a container that passes and one that does not, a container packed from another build included; the ConBee III's image size guard on both sides of its bound; every tracked tool that flashes running the guard for a named board |
 | `avr_int` | the portable code compiled with a 16-bit `int`, as the AVR boards run it, and no literal `1` of `int` width shifted by a variable count |
 
 `mg21_radio_map` runs only where the maintainers' full radio record is present.

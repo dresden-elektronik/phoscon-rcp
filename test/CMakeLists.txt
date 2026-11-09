@@ -451,6 +451,9 @@ endif()
 if(Python3_Interpreter_FOUND)
   add_test(NAME gcf_guard
     COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/test/unit/test_gcf_guard.py)
+  # Every tracked tool that flashes a board runs that guard for the board it flashes.
+  add_test(NAME flash_paths
+    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/test/unit/test_flash_paths.py)
 endif()
 
 # ---- the portable code with a 16-bit int (cbrb1) ------------------------------------------------

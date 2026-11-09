@@ -101,7 +101,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="flash a RaspBee II or RaspBee I, driving its reset line")
     ap.add_argument("--port", required=True, help="the header UART the module sits on: /dev/ttyAMA0 (Pi 5) or /dev/ttyS0 (Pi 3)")
     ap.add_argument("--gcf", required=True, help="the packaged container")
-    ap.add_argument("--bin", help="the .bin the container was made from; checked against it. Without it, the container is taken as a released one")
+    which = ap.add_mutually_exclusive_group(required=True)
+    which.add_argument("--bin", help="the .bin the container was made from; the guard checks the container against it")
+    which.add_argument("--released", action="store_true",
+                       help="a released container, which comes without its .bin (docs/build-and-flash.md §12)")
     ap.add_argument("--flasher", required=True, help="path to GCFFlasher")
     ap.add_argument("--board", choices=("rb2", "cbrb1"), default="rb2",
                     help="the guard's board rules: rb2 for a RaspBee II, cbrb1 for a RaspBee I")
