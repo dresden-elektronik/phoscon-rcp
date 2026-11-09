@@ -30,26 +30,26 @@ BAR, ROW = 30, 60
 # one row per image: board, its name, .bin size in bytes, its build directory (a convention), and
 # whether a release builds it
 RCP = (
-    ('cb2', 'ConBee II', 51468, 'build/rcp', True),
-    ('rb2', 'RaspBee II', 46672, 'build/rb2-rcp', True),
-    ('cb3', 'ConBee III', 61024, 'build/fw-cb3-rcp', True),
-    ('cb3', 'ConBee III, own', 24076, 'build/fw-cb3-own', False),
-    ('cbrb1', 'ConBee I, RaspBee I', 43572, 'build/fw-cbrb1-rcp', True),
+    ('cb2', 'ConBee II', 52232, 'build/rcp', True),
+    ('rb2', 'RaspBee II', 47428, 'build/rb2-rcp', True),
+    ('cb3', 'ConBee III', 62376, 'build/fw-cb3-rcp', True),
+    ('cb3', 'ConBee III, own', 25120, 'build/fw-cb3-own', False),
+    ('cbrb1', 'ConBee I, RaspBee I', 45112, 'build/fw-cbrb1-rcp', True),
 )
 PROBE = (
-    ('cb2', 'ConBee II', 31516, 'build/fw', True),
-    ('rb2', 'RaspBee II', 26716, 'build/rb2', True),
-    ('cb3', 'ConBee III', 7264, 'build/fw-cb3', True),
-    ('cbrb1', 'ConBee I, RaspBee I', 6624, 'build/fw-cbrb1', True),
+    ('cb2', 'ConBee II', 31688, 'build/fw', True),
+    ('rb2', 'RaspBee II', 26880, 'build/rb2', True),
+    ('cb3', 'ConBee III', 7456, 'build/fw-cb3', True),
+    ('cbrb1', 'ConBee I, RaspBee I', 6854, 'build/fw-cbrb1', True),
 )
 # the same rows for RAM: every byte the linker places there - .data, .bss and .noinit, on cb3 also the
 # bootloader's 32-byte reset record; on cbrb1 .data holds .rodata as well, which avr-gcc reads from RAM
 RCP_RAM = (
-    ('cb2', 'ConBee II', 9416, 'build/rcp', True),
-    ('rb2', 'RaspBee II', 12264, 'build/rb2-rcp', True),
-    ('cb3', 'ConBee III', 14240, 'build/fw-cb3-rcp', True),
-    ('cb3', 'ConBee III, own', 13540, 'build/fw-cb3-own', False),
-    ('cbrb1', 'ConBee I, RaspBee I', 12020, 'build/fw-cbrb1-rcp', True),
+    ('cb2', 'ConBee II', 9424, 'build/rcp', True),
+    ('rb2', 'RaspBee II', 12272, 'build/rb2-rcp', True),
+    ('cb3', 'ConBee III', 14272, 'build/fw-cb3-rcp', True),
+    ('cb3', 'ConBee III, own', 13568, 'build/fw-cb3-own', False),
+    ('cbrb1', 'ConBee I, RaspBee I', 12024, 'build/fw-cbrb1-rcp', True),
 )
 
 

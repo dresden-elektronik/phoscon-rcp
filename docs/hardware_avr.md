@@ -77,7 +77,7 @@ How the image built here meets the part, and how each step is checked:
 | radio | the ConBee II's scheme: `RX_ON` in every mode, the filter and the Ack composed in the `RX_END` vector (`TX_START` 176 µs after the frame), transmission through `TX_ARET_ON` | 300 of 300 Ack-requesting frames acknowledged first time, none late |
 | power | capped at the vendor's setting, index `0x0E` (−11.5 dBm at the transceiver) | the radiated level is not measured |
 
-Sizes: the probe image is 6 624 B, the `rcp` image 43 702 B of the 253 952 B application area; the `rcp` image uses 11.7 KiB of SRAM.
+The images' flash and SRAM sizes are the figures of `docs/build-and-flash.md`.
 
 Measured on a **ConBee I** against ConBee IIs and a ConBee III on channel 22: every cell of `tools/cb3_rcp_check.py --baud 57600`, `tools/rcp_pair.py` (the nine Frame Pending cells included) and `tools/rcp_matrix.py`. An immediate Ack starts 212 to 230 µs after the frame on a third stick's clock, idle or back to back, with an empty or a full source table. A Phoscon Zigbee Stack coordinator and router form a network through it in either role. The **RaspBee I** on a Raspberry Pi 5 passes `tools/rcp_matrix.py` against a ConBee II and a ConBee III, and a Phoscon Zigbee Stack coordinator and router form a network through it in either role. The vendor app `0x260B0500` found on that RaspBee I ignores GCFFlasher's reset frame, so its first update needs the reset line (`docs/build-and-flash.md`).
 

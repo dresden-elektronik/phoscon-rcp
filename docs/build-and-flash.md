@@ -73,15 +73,15 @@ cmake --build build/fw-cbrb1-rcp
 
 A build writes `phoscon-rcp` (ELF), `.bin`, `.map` and, after packaging, `.bin.GCF` into its build directory. The linker and a build-time guard both refuse an image over the board's budget. Figures 1 to 3 are the one record of the measured sizes.
 
-![One row per RCP image, all to one byte scale, each an amber bar for the image on a hatched track for the room its board allows. ConBee II, cb2, 51 468 B of 237 312 B, in build/rcp. RaspBee II, rb2, 46 672 B of 237 312 B, in build/rb2-rcp. ConBee III, cb3, 61 024 B of 491 504 B, in build/fw-cb3-rcp. ConBee III with the unselected own back-end, 24 076 B of 491 504 B, in build/fw-cb3-own, its bar white. ConBee I and RaspBee I, cbrb1, 43 572 B of 253 952 B, in build/fw-cbrb1-rcp.](images/image-sizes-rcp.png)
+![One row per RCP image, all to one byte scale, each an amber bar for the image on a hatched track for the room its board allows. ConBee II, cb2, 52 232 B of 237 312 B, in build/rcp. RaspBee II, rb2, 47 428 B of 237 312 B, in build/rb2-rcp. ConBee III, cb3, 62 376 B of 491 504 B, in build/fw-cb3-rcp. ConBee III with the unselected own back-end, 25 120 B of 491 504 B, in build/fw-cb3-own, its bar white. ConBee I and RaspBee I, cbrb1, 45 112 B of 253 952 B, in build/fw-cbrb1-rcp.](images/image-sizes-rcp.png)
 
 *Figure 1 — every RCP image against its board's budget, with its build directory by convention. The budgets are read from `tools/gcf_check.py`. Source: `tools/diagrams/image_sizes.py`.*
 
-![One row per probe image, to the same scale as Figure 1. ConBee II, cb2, 31 516 B of 237 312 B, in build/fw. RaspBee II, rb2, 26 716 B of 237 312 B, in build/rb2. ConBee III, cb3, 7 264 B of 491 504 B, in build/fw-cb3. ConBee I and RaspBee I, cbrb1, 6 624 B of 253 952 B, in build/fw-cbrb1.](images/image-sizes-probe.png)
+![One row per probe image, to the same scale as Figure 1. ConBee II, cb2, 31 688 B of 237 312 B, in build/fw. RaspBee II, rb2, 26 880 B of 237 312 B, in build/rb2. ConBee III, cb3, 7 456 B of 491 504 B, in build/fw-cb3. ConBee I and RaspBee I, cbrb1, 6 854 B of 253 952 B, in build/fw-cbrb1.](images/image-sizes-probe.png)
 
 *Figure 2 — every probe image, to the scale of Figure 1. Source: `tools/diagrams/image_sizes.py`.*
 
-![One row per RCP image, to a scale of its own, each an amber bar for the RAM the image allocates at link time on a hatched track for the rest of its part's RAM. ConBee II, cb2, 9 416 B of 32 768 B. RaspBee II, rb2, 12 264 B of 32 768 B. ConBee III, cb3, 14 240 B of 98 304 B. ConBee III with the unselected own back-end, 13 540 B of 98 304 B, its bar white. ConBee I and RaspBee I, cbrb1, 12 020 B of 32 768 B.](images/image-sizes-ram.png)
+![One row per RCP image, to a scale of its own, each an amber bar for the RAM the image allocates at link time on a hatched track for the rest of its part's RAM. ConBee II, cb2, 9 424 B of 32 768 B. RaspBee II, rb2, 12 272 B of 32 768 B. ConBee III, cb3, 14 272 B of 98 304 B. ConBee III with the unselected own back-end, 13 568 B of 98 304 B, its bar white. ConBee I and RaspBee I, cbrb1, 12 024 B of 32 768 B.](images/image-sizes-ram.png)
 
 *Figure 3 — the RAM every RCP image allocates at link time: `.data`, `.bss` and `.noinit`, on `cb3` also the bootloader's reset record, on `cbrb1` also `.rodata`, which the AVR reads from RAM. The rest is where the stack grows down from the top; on `cb3` the linker keeps `.bss` below the panic mark at `0x20008000` and 8 KiB above it for the stack. The RAM is read from each board's linker script. Source: `tools/diagrams/image_sizes.py`.*
 
