@@ -12,7 +12,7 @@ Section numbers continue `docs/hardware_mg21.md`, so this document starts at §1
 |---|---|
 | core | 8-bit AVR; the module's 16 MHz crystal |
 | memory | 256 KiB flash in 256-byte pages, 32 KiB SRAM, 8 KiB EEPROM |
-| flash layout | the application from `0x0`, the bootloader in the 8 KiB boot section at `0x3E000` (`docs/build-and-flash.md`, Figure 5) |
+| flash layout | the application from `0x0`, the bootloader in the 8 KiB boot section at `0x3E000` (`docs/build-and-flash.md`, Figure 6) |
 | radio | 2.4 GHz 802.15.4 on the die, its registers memory-mapped: AT86RF233 register `n` sits at `0x140 + n`, no SPI |
 | front end | internal PA and LNA (about 20 dB), controlled by `PD6` (`PA_CSD`, front end on), `PG0` (`PA_CTX`, driven by the transceiver when `PA_EXT_EN` is set) and `PG1` (antenna select) |
 | host link | UART0 on `PE0`/`PE1`, 8N1, 57 600 for the `rcp` image and 38 400 for `probe`: behind an FTDI bridge on the ConBee I, on the Pi header on the RaspBee I. Both run one image |

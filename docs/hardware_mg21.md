@@ -28,7 +28,7 @@ The stick's identity lives in the user data page (`0x0FE00000`, 1 KiB), outside 
 |---|---|---|
 | the factory MAC | the manufacturing token `TOKEN_MFG_CUSTOM_EUI_64`, user data page `+0x002`, least significant byte first | `HWADDR` is the token read most significant byte first (`hal/mg21/mg21_ident.c`); an all-`0xFF`, all-zero or group value answers `INVALID_STATE` |
 | the bootloader's DeviceConfig | user data page `+0x300`: product id (`0xDEC0DE03` for the ConBee III), serial, MAC, the link (USART0, PB1/PB0, 115 200) | read only; its product id is what a container's product magic must match |
-| NVM3 | `0xF8000`, the last 32 KiB of flash | nothing of this firmware's goes there or into the bootloader's staging area below it (`docs/build-and-flash.md`, Figure 5) |
+| NVM3 | `0xF8000`, the last 32 KiB of flash | nothing of this firmware's goes there or into the bootloader's staging area below it (`docs/build-and-flash.md`, Figure 6) |
 
 - Silicon Labs' own DEVINFO EUI-64 is not a fallback: deCONZ does not know the stick by it.
 - A development stick may carry a token programmed from a 17-digit string kept to its low 16 digits (`0212EFFFFDEAFFE1`). That is what was written, and `HWADDR` reports it as stored.

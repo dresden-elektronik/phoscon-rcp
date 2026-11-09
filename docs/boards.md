@@ -26,7 +26,7 @@ Four build targets cover the five products of the ConBee/RaspBee line (Figure 1)
 | ConBee III (`cb3`) | EFR32MG21, radio on die | USART0 over an FTDI bridge, 115 200 8N1 | the user data page's manufacturing token | deSiLabs; `0x4000`, a nested AES container (`docs/hardware_mg21.md`) |
 | ConBee I, RaspBee I (`cbrb1`) | ATmega256RFR2, radio on die | UART0, 8N1, 57 600 for the `rcp` image and 38 400 for `probe`: FTDI bridge, or the Pi header | the EEPROM's basic set | RaspBee Bootloader V1.02 at the top of flash; `0x0` |
 
-Where each board's flash may be written is Figure 5 of `docs/build-and-flash.md`.
+Where each board's flash may be written is Figure 6 of `docs/build-and-flash.md`.
 
 ## 3. Shared and per-board code
 

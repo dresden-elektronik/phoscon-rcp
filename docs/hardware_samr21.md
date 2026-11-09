@@ -21,7 +21,7 @@ The silicon facts the ConBee II and RaspBee II firmware depends on, and the pitf
 | MCU | ATSAMR21E18A, Cortex-M0+ at 48 MHz, 256 KB flash, 32 KB SRAM |
 | radio | AT86RF233 on SERCOM4 SPI; powered from VBUS, so it survives an MCU reset |
 | clock reference | no crystal for the SoC: the radio's CLKM output is the only accurate reference (§2) |
-| flash map | bootloader below `0x5000`, the app from `0x5000`, the deCONZ NVRAM from `0x3EF00` (`docs/build-and-flash.md`, Figure 5); the probe image's post-mortem row at `0x3E000` |
+| flash map | bootloader below `0x5000`, the app from `0x5000`, the deCONZ NVRAM from `0x3EF00` (`docs/build-and-flash.md`, Figure 6); the probe image's post-mortem row at `0x3E000` |
 
 | signal | pin | use |
 |---|---|---|
@@ -176,7 +176,7 @@ The ConBee II's GCF bootloader (V2.07, below `0x5000`) opens a window of about 5
 
 ## 9. The RaspBee II host link (`rb2`)
 
-The RaspBee II is the ConBee II's SoC and radio behind a UART instead of USB, mounted on a Raspberry Pi's header (`docs/build-and-flash.md`, Figure 4). Each product has its own image, which differs in the link driver, and its own container type (1 for the ConBee II, 31 for the RaspBee II).
+The RaspBee II is the ConBee II's SoC and radio behind a UART instead of USB, mounted on a Raspberry Pi's header (`docs/build-and-flash.md`, Figure 5). Each product has its own image, which differs in the link driver, and its own container type (1 for the ConBee II, 31 for the RaspBee II).
 
 | fact | value |
 |---|---|

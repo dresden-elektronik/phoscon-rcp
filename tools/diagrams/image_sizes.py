@@ -5,11 +5,13 @@
 
 Two figures, the rcp images and the probe images, with one row per image, all to one byte scale, so a
 row compares with every other in either figure: the bar is the image, in amber, and the hatched rest
-of the row is the room left in what its board's guard allows, read from tools/gcf_check.py. The sizes
-are measured from a build of an export, where the version string is the release's, and are updated in
-SIZES when they change.
+of the row is the room left in what its board's guard allows, read from tools/gcf_check.py. A third
+figure, to a scale of its own, is the RAM each rcp image allocates at link time against the RAM its
+part has, read from the board's linker script; the hatched rest is where the stack grows down from the
+top. The sizes are measured from a build of an export, where the version string is the release's, and
+are updated in RCP, PROBE and RCP_RAM when they change.
 
-    python3 tools/diagrams/image_sizes.py            # docs/images/image-sizes-{rcp,probe}.png
+    python3 tools/diagrams/image_sizes.py            # docs/images/image-sizes-{rcp,probe,ram}.png
     python3 tools/diagrams/image_sizes.py --check
 """
 
@@ -40,6 +42,15 @@ PROBE = (
     ('cb3', 'ConBee III', 7264, 'build/fw-cb3', True),
     ('cbrb1', 'ConBee I, RaspBee I', 6624, 'build/fw-cbrb1', True),
 )
+# the same rows for RAM: every byte the linker places there - .data, .bss and .noinit, on cb3 also the
+# bootloader's 32-byte reset record; on cbrb1 .data holds .rodata as well, which avr-gcc reads from RAM
+RCP_RAM = (
+    ('cb2', 'ConBee II', 9416, 'build/rcp', True),
+    ('rb2', 'RaspBee II', 12264, 'build/rb2-rcp', True),
+    ('cb3', 'ConBee III', 14240, 'build/fw-cb3-rcp', True),
+    ('cb3', 'ConBee III, own', 13540, 'build/fw-cb3-own', False),
+    ('cbrb1', 'ConBee I, RaspBee I', 12020, 'build/fw-cbrb1-rcp', True),
+)
 
 
 def budgets():
@@ -54,12 +65,29 @@ def budgets():
                 cbrb1=const('AVR_BOOT_BASE'))
 
 
+def rams():
+    """The RAM each part has, read from the board's linker script: the regions the linker may place
+    data in, and on cb3 the reset record below them."""
+    def length(script, region):
+        with open(os.path.join(figure.ROOT, 'src', 'targets', script)) as f:
+            src = f.read()
+        expr = re.search(r'^\s*%s\s*\([^)]*\)\s*:\s*ORIGIN\s*=\s*[^,]+,\s*LENGTH\s*=\s*(.+)$' % region,
+                         src, re.M).group(1)
+        terms = re.findall(r'([+-]?)\s*(0x[0-9A-Fa-f]+|\d+)', expr)
+        return sum(int(n, 0) * (-1 if sign == '-' else 1) for sign, n in terms)
+    samr21 = length('cb2/atsamr21.ld', 'RAM')
+    if length('rb2/atsamr21.ld', 'RAM') != samr21:
+        raise SystemExit('image_sizes: cb2 and rb2 no longer have the same RAM')
+    return dict(cb2=samr21, rb2=samr21,
+                cb3=length('cb3/efr32mg21.ld', 'RECORD') + length('cb3/efr32mg21.ld', 'RAM'),
+                cbrb1=length('cbrb1/atmega256rfr2.ld', 'data'))
+
+
 def spaced(n):
     return '{:,}'.format(n).replace(',', ' ') + ' B'
 
 
-def rows(f, images, legend):
-    room = budgets()
+def rows(f, images, room, legend):
     scale = (X1 - X0) / float(max(room.values()))
     y = f.top + 22
     for board, name, size, directory, selected in images:
@@ -89,14 +117,21 @@ def rows(f, images, legend):
 
 def build_rcp():
     f = figure.Fig(W, 600, 'RCP IMAGE SIZES', 'each image against the room its board allows, all to one scale')
-    return rows(f, RCP, [('amb', 'the image'), ('blk', 'the image with the unselected back-end'),
+    return rows(f, RCP, budgets(), [('amb', 'the image'), ('blk', 'the image with the unselected back-end'),
                          ('keep', 'the room left')])
 
 
 def build_probe():
     f = figure.Fig(W, 600, 'PROBE IMAGE SIZES', 'each image against the room its board allows, to the scale of the RCP figure')
-    return rows(f, PROBE, [('amb', 'the image'), ('keep', 'the room left')])
+    return rows(f, PROBE, budgets(), [('amb', 'the image'), ('keep', 'the room left')])
+
+
+def build_ram():
+    f = figure.Fig(W, 600, 'RCP IMAGE RAM', 'what each image allocates at link time against the RAM its part has, to a scale of its own')
+    return rows(f, RCP_RAM, rams(), [('amb', 'allocated at link time'), ('blk', 'the same with the unselected back-end'),
+                                     ('keep', 'the stack and the room left')])
 
 
 if __name__ == '__main__':
-    sys.exit(figure.main('image-sizes-rcp', build_rcp) | figure.main('image-sizes-probe', build_probe))
+    sys.exit(figure.main('image-sizes-rcp', build_rcp) | figure.main('image-sizes-probe', build_probe)
+             | figure.main('image-sizes-ram', build_ram))

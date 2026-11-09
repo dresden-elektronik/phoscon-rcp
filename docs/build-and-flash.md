@@ -71,7 +71,7 @@ cmake --build build/fw-cbrb1-rcp
 
 ## 3. Artifacts and sizes
 
-A build writes `phoscon-rcp` (ELF), `.bin`, `.map` and, after packaging, `.bin.GCF` into its build directory. The linker and a build-time guard both refuse an image over the board's budget. Figures 1 and 2 are the one record of the measured sizes.
+A build writes `phoscon-rcp` (ELF), `.bin`, `.map` and, after packaging, `.bin.GCF` into its build directory. The linker and a build-time guard both refuse an image over the board's budget. Figures 1 to 3 are the one record of the measured sizes.
 
 ![One row per RCP image, all to one byte scale, each an amber bar for the image on a hatched track for the room its board allows. ConBee II, cb2, 51 468 B of 237 312 B, in build/rcp. RaspBee II, rb2, 46 672 B of 237 312 B, in build/rb2-rcp. ConBee III, cb3, 61 024 B of 491 504 B, in build/fw-cb3-rcp. ConBee III with the unselected own back-end, 24 076 B of 491 504 B, in build/fw-cb3-own, its bar white. ConBee I and RaspBee I, cbrb1, 43 572 B of 253 952 B, in build/fw-cbrb1-rcp.](images/image-sizes-rcp.png)
 
@@ -80,6 +80,10 @@ A build writes `phoscon-rcp` (ELF), `.bin`, `.map` and, after packaging, `.bin.G
 ![One row per probe image, to the same scale as Figure 1. ConBee II, cb2, 31 516 B of 237 312 B, in build/fw. RaspBee II, rb2, 26 716 B of 237 312 B, in build/rb2. ConBee III, cb3, 7 264 B of 491 504 B, in build/fw-cb3. ConBee I and RaspBee I, cbrb1, 6 624 B of 253 952 B, in build/fw-cbrb1.](images/image-sizes-probe.png)
 
 *Figure 2 — every probe image, to the scale of Figure 1. Source: `tools/diagrams/image_sizes.py`.*
+
+![One row per RCP image, to a scale of its own, each an amber bar for the RAM the image allocates at link time on a hatched track for the rest of its part's RAM. ConBee II, cb2, 9 416 B of 32 768 B. RaspBee II, rb2, 12 264 B of 32 768 B. ConBee III, cb3, 14 240 B of 98 304 B. ConBee III with the unselected own back-end, 13 540 B of 98 304 B, its bar white. ConBee I and RaspBee I, cbrb1, 12 020 B of 32 768 B.](images/image-sizes-ram.png)
+
+*Figure 3 — the RAM every RCP image allocates at link time: `.data`, `.bss` and `.noinit`, on `cb3` also the bootloader's reset record, on `cbrb1` also `.rodata`, which the AVR reads from RAM. The rest is where the stack grows down from the top; on `cb3` the linker keeps `.bss` below the panic mark at `0x20008000` and 8 KiB above it for the stack. The RAM is read from each board's linker script. Source: `tools/diagrams/image_sizes.py`.*
 
 ## 4. Packaging
 
@@ -98,7 +102,7 @@ The header is 14 bytes, little-endian: magic `0xCAFEFEED`, type, target, size, a
 
 ![Two rows. On the host: cmake --build makes the image, the .bin; GCFTool -b with the board makes the container, the .GCF; gcf_check.py, the pre-flash guard, in amber, either refuses it, and nothing is flashed, or passes it to GCFFlasher -d with the port, which talks to the board. On the board: GCFFlasher's reset frame reaches the running app, this firmware or the vendor's, which resets into the bootloader's start window; GCFFlasher then sends the bootloader the container page by page, and after the CRC check the new image runs.](images/flash-flow.png)
 
-*Figure 3 — from a build to a running image. Amber is the guard (§6), the step a container must pass before anything touches a board. Where the running app cannot hear the reset frame, the reset comes from the board's own line instead: a replug on a ConBee, GPIO17 on a RaspBee (§5.1, §11). Source: `tools/diagrams/flash_flow.py`.*
+*Figure 4 — from a build to a running image. Amber is the guard (§6), the step a container must pass before anything touches a board. Where the running app cannot hear the reset frame, the reset comes from the board's own line instead: a replug on a ConBee, GPIO17 on a RaspBee (§5.1, §11). Source: `tools/diagrams/flash_flow.py`.*
 
 ```sh
 python3 tools/gcf_check.py <bin>.GCF <bin> --board <board>
@@ -128,7 +132,7 @@ On a ConBee II, `tools/killprobe.py` builds, packages, guards and flashes in one
 
 ![The first twenty pins of the Raspberry Pi's 40-pin header, even pins in the top row and odd pins below, pin 1 at the left. Pins 8 (GPIO14), 10 (GPIO15) and 11 (GPIO17) are amber; the rest are labelled with their usual names (5V, GND, 3V3, GPIO2 and others) and left alone. Beside the header: GPIO14 is TXD, the Pi transmits and the module receives; GPIO15 is RXD, the module transmits and the Pi receives; GPIO17 is the reset, driven low for 120 ms to reset the module. Below that, which UART is behind GPIO14 and GPIO15: on a Raspberry Pi 5 it is /dev/ttyAMA0, which pinctrl names TXD0 and RXD0; on a Pi 3 or a Zero W with Bluetooth on it is /dev/ttyS0, the mini UART, TXD1 and RXD1. A last line says to name the port, because /dev/serial0 can point elsewhere.](images/pi-header.png)
 
-*Figure 4 — the header a RaspBee II or RaspBee I sits on. Amber marks the three pins the link uses; the port to name depends on the Pi. The RaspBee I uses the same three pins (§11). Source: `tools/diagrams/pi_header.py`.*
+*Figure 5 — the header a RaspBee II or RaspBee I sits on. Amber marks the three pins the link uses; the port to name depends on the Pi. The RaspBee I uses the same three pins (§11). Source: `tools/diagrams/pi_header.py`.*
 
 Run `tools/rb2_flash.py` from a checkout of this repository on the Pi. A released container needs only `--gcf`, without `--bin`. For an image of your own, package and guard on the build host and copy the `.bin` and `.GCF` to the Pi:
 
@@ -148,18 +152,18 @@ python3 tools/rb2_flash.py --board cbrb1 --port /dev/ttyS0 ...      # RaspBee I 
 
 ## 6. Pre-flash guard
 
-Every flash path runs `tools/gcf_check.py --board <board>` before GCFFlasher; nothing is flashed unless every check passes (Figure 5).
+Every flash path runs `tools/gcf_check.py --board <board>` before GCFFlasher; nothing is flashed unless every check passes (Figure 6).
 
 ![Three bars, one per part, each to the scale of its own flash. cb2 and rb2, the ATSAMR21E18A with 256 KiB: the bootloader and its two flag bytes from 0x0, hatched; the app image from 0x5000, in amber, up to 0x3EF00; the deCONZ NVRAM with the MAC address above it, hatched. cb3, the EFR32MG21 with 1 MiB: the bootloader below 0x4000, hatched; the app image, the AppSection, in amber from 0x4000 to 0x7BFF0; the 16-byte AppInfo the bootloader writes; the bootloader's staging area; and NVM3 from 0xF8000, all hatched. cbrb1, the ATmega256RFR2 with 256 KiB: the app image from 0x0, where the reset vector is, in amber up to 0x3E000; the bootloader in the boot section above it, hatched.](images/flash-maps.png)
 
-*Figure 5 — where an image may go on each part. Amber is the room the guard allows; a hatched region is left alone by every flash. The boundaries are read from `tools/gcf_check.py` itself. The ConBee I and RaspBee I keep their MAC address in the EEPROM, a separate memory (`docs/hardware_avr.md`). Source: `tools/diagrams/flash_maps.py`.*
+*Figure 6 — where an image may go on each part. Amber is the room the guard allows; a hatched region is left alone by every flash. The boundaries are read from `tools/gcf_check.py` itself. The ConBee I and RaspBee I keep their MAC address in the EEPROM, a separate memory (`docs/hardware_avr.md`). Source: `tools/diagrams/flash_maps.py`.*
 
 | check | refused when |
 |---|---|
 | magic and size | the magic is not `0xCAFEFEED`, or the size field does not match the file |
 | type | the type is not the board's (`1..10` `cb2` and `cbrb1`, `31..39` `rb2`, `60` `cb3`), or it is plaintext `0`. A ConBee II container offered to a RaspBee II is refused here |
 | target | `0x5000` (`cb2`, `rb2`), `0x4000` (`cb3`), `0` (`cbrb1`) is not what the header says |
-| size | the image reaches a protected region (Figure 5); for `cbrb1` also an odd size, a whole number of 256-byte pages, or a `.bin` that does not start with a jump (`docs/hardware_avr.md`) |
+| size | the image reaches a protected region (Figure 6); for `cbrb1` also an odd size, a whole number of 256-byte pages, or a `.bin` that does not start with a jump (`docs/hardware_avr.md`) |
 | CRCs | `cb3`: the outer CRC-8 or the inner CRC-32 does not verify |
 | inner shape | `cb3`: the product magic, the inner type or the inner target is wrong |
 | the `.bin`'s | the container was packed from another image: its size, or its plain-image checksum (the header CRC-8 on `cb2`, `rb2` and `cbrb1`, the inner CRC-32 on `cb3`), does not match the `.bin`; or the `.GCF` is older than the `.bin` |
@@ -189,11 +193,11 @@ The vendor firmware goes back through the same GCFFlasher path. The images are p
 
 ## 9. The ConBee III container
 
-The ConBee III's GCF payload is itself a container (Figure 6). `GCFTool -b cb3 <bin>` builds it, and rebuilding the vendor's released image gives a byte-identical `.GCF`, which is the test behind the guard.
+The ConBee III's GCF payload is itself a container (Figure 7). `GCFTool -b cb3 <bin>` builds it, and rebuilding the vendor's released image gives a byte-identical `.GCF`, which is the test behind the guard.
 
 ![Two strips. The outer GCF: a 14-byte header with type 60, target 0x4000 and a CRC-8, then the inner container as its payload, which the CRC-8 covers. The inner container, magnified, stored in plain except for the app: the product magic 0xDEC0DE03 at +0, in amber because it must equal the stick's DeviceID; a u32 size at +4; a 20-byte image header at +8 with the image size, type 61, the target and the plain size; the app from +28, encrypted with AES-256-CBC and key 1; and a CRC-32 over everything before it in the last four bytes.](images/cb3-container.png)
 
-*Figure 6 — the ConBee III container. Amber is the product magic, which the bootloader compares with the stick's own DeviceID. Source: `tools/diagrams/cb3_container.py`.*
+*Figure 7 — the ConBee III container. Amber is the product magic, which the bootloader compares with the stick's own DeviceID. Source: `tools/diagrams/cb3_container.py`.*
 
 - **The size limit** is the 480 KiB AppSection minus the 16-byte AppInfo trailer the bootloader writes after the app: 491 504 B. An app that fills the whole AppSection passes the bootloader's size check and then fails its verification. The linker script and the image guard both stop at the trailer.
 - **Flashing** works through the running image (`docs/hardware_mg21.md`, Figure 2). GCFFlasher has no reset line for a ConBee III; if no image answers, it still polls for the bootloader for about 10 s.
@@ -248,7 +252,7 @@ GCFFlasher -t 30 -d <port> -f build/fw-cbrb1-rcp/phoscon-rcp.bin.GCF      # ConB
 
 To release, in this order:
 
-1. Set `VERSION`, add its entry to `CHANGELOG.md`, update the sizes in `tools/diagrams/image_sizes.py` from a build of an export, and commit.
+1. Set `VERSION`, add its entry to `CHANGELOG.md`, update the image and RAM sizes in `tools/diagrams/image_sizes.py` from a build of an export, and commit.
 2. Run `python3 tools/release_images.py --snapshot` with `GCFTOOL` naming the keyed tool, and flash each container on its board.
 3. Tag the commit `v<VERSION>`, run `python3 tools/release_images.py`, and attach `dist/<version>/` to the GitHub release: one container per board and `SHA256SUMS`. A tagged build differs from a snapshot in the version string, so flash the tagged containers again.
 4. Add the containers to the updater's manifest at <https://phoscon.de/updater>.
