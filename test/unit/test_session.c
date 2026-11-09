@@ -941,6 +941,60 @@ TU_TEST(a_timed_transmission_has_its_delay_on_top_of_the_limit)
     TU_EQ(Rcp_Healthy(&session, RCP_TX_STUCK_MS + (delayUs >> 9) + 1u), 0);
 }
 
+static void putU32At(uint8_t *dst, uint32_t v)
+{
+    dst[0] = (uint8_t)v;
+    dst[1] = (uint8_t)(v >> 8);
+    dst[2] = (uint8_t)(v >> 16);
+    dst[3] = (uint8_t)(v >> 24);
+}
+
+/* A timed frame is due at base + delay on the radio's clock, and the host chooses both: the limit runs
+ * from that moment, whatever share of the lead the base carries. Otherwise a host that names a base
+ * ahead of the clock keeps a healthy frame in flight past the limit, and the watchdog resets the board
+ * for input alone. */
+TU_TEST(a_timed_transmission_is_not_stuck_before_its_moment)
+{
+    static const uint8_t psdu[3] = {0x01u, 0x00u, 0x42u};
+    uint8_t payload[64];
+    uint8_t reply[OUT];
+    uint16_t len;
+    const uint16_t trailer = (uint16_t)(2u + sizeof(psdu));
+    const uint32_t nowUs = 0xFFFF0000uL;       /* the radio's clock wraps before the moment */
+    const uint32_t leadUs = 60000000uL;        /* 60 s ahead, nearly all of it in the base */
+    const uint32_t delayUs = 1000u;
+
+    freshSession();
+    sinkRefuse = 0;
+    Rcp_SetTxSink(&session, fakeSink, 0);
+    enableRawStream();
+    session.props.radioTimeUs = 0x500000000uLL | nowUs;
+
+    len = txPayload(payload, psdu, 3u, 26u, 0, 0u);
+    putU32At(&payload[trailer + 7u], delayUs);
+    putU32At(&payload[trailer + 11u], nowUs + leadUs - delayUs);
+    (void)setStreamRaw(5u, payload, len, reply);
+    TU_EQ(sinkReq.txDelay, delayUs);
+
+    TU_EQ(Rcp_Healthy(&session, 0u), 1);
+    TU_EQ(Rcp_Healthy(&session, leadUs / 1000u + RCP_TX_STUCK_MS), 1);
+    TU_EQ(Rcp_Healthy(&session, RCP_TX_STUCK_MS + (leadUs >> 9)), 1);
+    TU_EQ(Rcp_Healthy(&session, RCP_TX_STUCK_MS + (leadUs >> 9) + 1u), 0);
+
+    /* A moment already gone completes at once (radio.h), so it gets the plain limit. */
+    freshSession();
+    Rcp_SetTxSink(&session, fakeSink, 0);
+    enableRawStream();
+    session.props.radioTimeUs = nowUs;
+    len = txPayload(payload, psdu, 3u, 26u, 0, 0u);
+    putU32At(&payload[trailer + 7u], delayUs);
+    putU32At(&payload[trailer + 11u], nowUs - 5000000uL);
+    (void)setStreamRaw(6u, payload, len, reply);
+    TU_EQ(Rcp_Healthy(&session, 0u), 1);
+    TU_EQ(Rcp_Healthy(&session, RCP_TX_STUCK_MS), 1);
+    TU_EQ(Rcp_Healthy(&session, RCP_TX_STUCK_MS + 1u), 0);
+}
+
 /* The property handler's status is the answer, not NOMEM (docs/protocol.md §5). */
 TU_TEST(a_get_that_fails_reports_the_handlers_status)
 {
@@ -1319,6 +1373,7 @@ int main(void)
          a_transmission_that_never_completes_makes_the_session_unhealthy},
         {"a_timed_transmission_has_its_delay_on_top_of_the_limit",
          a_timed_transmission_has_its_delay_on_top_of_the_limit},
+        {"a_timed_transmission_is_not_stuck_before_its_moment", a_timed_transmission_is_not_stuck_before_its_moment},
         {"a_reset_forgets_the_keys", a_reset_forgets_the_keys},
         {"a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header",
          a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header},

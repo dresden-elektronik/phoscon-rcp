@@ -200,6 +200,7 @@ rcpAnswer(Rcp_Session *s, U_BStream *out, uint8_t tid, uint32_t prop, uint32_t s
 static uint16_t rcpSetStreamRaw(Rcp_Session *s, U_BStream *out, const Spinel_Frame *f)
 {
     PropsStream_TxRequest req;
+    uint32_t limitMs = RCP_TX_STUCK_MS;
 
     if (!s->props.rawStreamEnabled)
     {
@@ -231,6 +232,18 @@ static uint16_t rcpSetStreamRaw(Rcp_Session *s, U_BStream *out, const Spinel_Fra
         s->rejected++;
         return rcpTxStatus(s, out, f->tid, SPINEL_STATUS_INVALID_STATE, 0);
     }
+
+    /* A timed frame is due at base + delay on the radio's clock, both the host's choice, and every
+     * back-end's own deadline runs from that moment (radio.h): so does the limit, or a base ahead of
+     * the clock would call a healthy frame stuck. A moment already gone completes at once. µs to ms
+     * by >> 9: about twice the lead, never less, and no divide on a core without one. */
+    if (req.txDelay != 0u)
+    {
+        int32_t leadUs = (int32_t)(req.txDelayBase + req.txDelay - (uint32_t)s->props.radioTimeUs);
+
+        if (leadUs > 0)
+            limitMs += (uint32_t)leadUs >> 9;
+    }
 #endif
 
     if (s->txSink == 0 || !s->txSink(s->txCtx, &req, f->tid))
@@ -242,8 +255,7 @@ static uint16_t rcpSetStreamRaw(Rcp_Session *s, U_BStream *out, const Spinel_Fra
     s->txInFlight = 1;
     s->txTid = f->tid;
     s->txWatched = 0;
-    /* µs to ms by >> 9: about twice the delay, never less, and no divide on a core without one. */
-    s->txLimitMs = RCP_TX_STUCK_MS + (req.txDelay >> 9);
+    s->txLimitMs = limitMs;
     return 0u;
 }
 

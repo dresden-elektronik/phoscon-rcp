@@ -26,7 +26,7 @@
  * and the frame, then a key index and a four-octet frame counter. */
 #define RCP_TX_DONE_MAX (4u + 5u + 2u + 28u + RCP_TX_ACK_MAX + 5u)
 
-/* How long a transmission may stay in flight, beyond the delay it asked for, before the session calls
+/* How long a transmission may stay in flight, beyond the moment it asked for, before the session calls
  * itself unhealthy. Every back-end clamps the retries to 15 and bounds each attempt by its own
  * deadline (50 ms per attempt on the AT86RF233 boards, one CSMA-CA round under RAIL), so the slowest
  * outcome a congested channel can produce is under a second; a transmission still open after this
