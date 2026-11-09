@@ -205,6 +205,8 @@ typedef struct
     void (*rxHandler)(const Radio_Frame *frame);
 
     volatile uint8_t isrPhase;
+    volatile uint8_t micOpen;       /* the RX_END vector lets the interrupts in for the MIC; its frame is not stored yet */
+    volatile uint8_t ackEndedInMic; /* the Ack's TX_END came meanwhile and left the receiver off */
     volatile uint32_t ackSince;
     volatile uint8_t irqMirror; /* IRQ causes the vectors left for the thread */
     Mac_AckCfg ackCfg;          /* the vector's filter view, written under the lock */
@@ -1349,12 +1351,15 @@ static int radioIsrEnhAck(uint32_t stamp,
  * arrives at the host link's rate, so it runs with the short vectors let in. None of them touches the engine:
  * a block of the loop's has finished before this vector runs, and this one's blocks hold the interrupts
  * themselves. The radio's own vectors stay quiet while the Ack is on air; one that came all the same finds the
- * phase already set. */
+ * phase already set. An Ack that ends before the MIC is in leaves the receiver off (the TX_END vector): a frame
+ * received now would overwrite the tail still in the buffer and, through a nested RX_END, the slot this vector
+ * has not published. radioIsrRxEnd turns the receiver on once both are done. */
 static void radioIsrEnhAckMic(const MacSec_AckMic *later, const uint8_t *ack)
 {
     uint8_t mic[4];
     uint8_t i;
 
+    radio.micOpen = 1u;
     HAL_IrqUnlock();
 
     if (MacSec_EnhAckMic(later, &ack[1], mic))
@@ -1368,6 +1373,7 @@ static void radioIsrEnhAckMic(const MacSec_AckMic *later, const uint8_t *ack)
     }
 
     HAL_IrqLock();
+    radio.micOpen = 0u;
 }
 
 /* One received frame. Its length, FCS validity and energy are read first, while they still describe
@@ -1512,6 +1518,13 @@ static void radioIsrRxEnd(uint32_t stamp)
     stampUs = Tick_ClockUs() - (Tick_CyclesSince(stamp) >> 4);
     dst->timestamp = stampUs - RX_END_TIRQ_US - ((uint32_t)len + 1u) * OCTET_US;
     radio.rxHead = (uint8_t)(radio.rxHead + 1u);
+
+    if (radio.ackEndedInMic)
+    {
+        radio.ackEndedInMic = 0u;
+        radioCmd(CMD_RX_ON);
+        radio.isrPhase = ISR_RX;
+    }
 }
 
 /* RX_END while our frame's Ack is awaited. Anything else that arrived is dropped, unacknowledged, as ARET
@@ -1572,7 +1585,12 @@ AVR_ISR(AVR_TRX24_TX_END_vect_num)
 {
     HAL_IrqEnter();
 
-    if (radio.isrPhase == ISR_ACK)
+    if (radio.isrPhase == ISR_ACK && radio.micOpen)
+    {
+        /* Inside the RX_END vector's MIC: it turns the receiver on (radioIsrEnhAckMic). */
+        radio.ackEndedInMic = 1u;
+    }
+    else if (radio.isrPhase == ISR_ACK)
     {
         radioCmd(CMD_RX_ON);
         radio.isrPhase = ISR_RX;
