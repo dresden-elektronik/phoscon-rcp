@@ -119,7 +119,7 @@ The `rcp` image brings the PHY up at boot, before its radio back-end (§12.6). T
 | `tools/rcp_pair.py` | every cell, both ways: the filter per mode, the Ack policy, the Frame Pending bit, frames longer than one USB packet |
 | `tools/rcp_matrix.py` | every cell, both directions |
 | frames of 20 to 125 octets to the XIAO | all reported byte-identical |
-| broadcast bursts from the XIAO, each reported sent | heard at about −55 dBm from −10 dBm: 17 of 360 lost on channel 26, 1 of 120 on 25 and 1 of 280 on 11; none of 120 on 26 at +10 dBm, heard at −33 dBm. A lost frame arrives with a bad FCS and one run of 4 to 9 corrupted octets, 128 to 288 µs, and the bench's channel 26 peaks at −32 to −37 dBm in an energy scan, the loudest of those scanned. A ConBee II pair heard at −30 dBm loses none. The loss is the channel's at the XIAO's lower received level, not its transmitter's |
+| broadcast bursts, each reported sent | on the bench, within 3 m, losses follow the energy a channel carries, in both directions, and only at the lower level the XIAO's link is heard at. At −10 dBm, XIAO to ConBee II: 2 of 200 lost on channel 11, 24 on 15, all on 20, 1 on 25 and 13 on 26; the other way, none on 11, 15 and 26, all on 20. A lost frame arrives with a bad FCS and one run of corrupted octets, or not at all. Channel 20 holds a steady −41 dBm in an energy scan: at +10 dBm, heard at −35 dBm, none of 200 is lost; at 0 dBm, heard at −45 dBm, all are. Two ConBee IIs heard at −19 to −29 dBm lose at most 1 of 100 on any of these channels. The loss belongs to the bench's channels, not to the XIAO's radio |
 
 | fact | consequence |
 |---|---|
