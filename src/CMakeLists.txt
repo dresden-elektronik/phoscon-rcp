@@ -225,15 +225,29 @@ if(NOT DEFINED DS_IMAGE_BOUND OR DS_IMAGE_BOUND STREQUAL "")
                       "address the image must end below (docs/boards.md §4).")
 endif()
 math(EXPR DS_GUARD_MAX "${DS_IMAGE_BOUND} - ${APP_ORIGIN}")
-add_custom_command(TARGET ${DS_PRODUCT} POST_BUILD
-  COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${DS_PRODUCT}>
-          ${CMAKE_BINARY_DIR}/${DS_PRODUCT}.bin
-  COMMAND ${CMAKE_COMMAND}
-          -D MAX_BYTES=${DS_GUARD_MAX}
-          -D BIN=${CMAKE_BINARY_DIR}/${DS_PRODUCT}.bin
-          -P ${DS_GUARD_SCRIPT}
-  COMMENT "objcopy -O binary + NVRAM guard"
-)
+# A board whose bootloader loads an image format of its own names the command that writes it, from the
+# ELF to ${DS_PRODUCT}.bin (DS_IMAGE_COMMAND, an ESP32 board's esptool elf2image); every other board's
+# image is the flat binary.
+if(DEFINED DS_IMAGE_COMMAND)
+  add_custom_command(TARGET ${DS_PRODUCT} POST_BUILD
+    COMMAND ${DS_IMAGE_COMMAND}
+    COMMAND ${CMAKE_COMMAND}
+            -D MAX_BYTES=${DS_GUARD_MAX}
+            -D BIN=${CMAKE_BINARY_DIR}/${DS_PRODUCT}.bin
+            -P ${DS_GUARD_SCRIPT}
+    COMMENT "the board's image writer + image guard"
+  )
+else()
+  add_custom_command(TARGET ${DS_PRODUCT} POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${DS_PRODUCT}>
+            ${CMAKE_BINARY_DIR}/${DS_PRODUCT}.bin
+    COMMAND ${CMAKE_COMMAND}
+            -D MAX_BYTES=${DS_GUARD_MAX}
+            -D BIN=${CMAKE_BINARY_DIR}/${DS_PRODUCT}.bin
+            -P ${DS_GUARD_SCRIPT}
+    COMMENT "objcopy -O binary + NVRAM guard"
+  )
+endif()
 
 
 # Application mode (docs/architecture.md §1): "probe" is the diagnostic and
