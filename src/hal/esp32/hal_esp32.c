@@ -120,6 +120,9 @@ int HAL_Init(void)
     HAL_IrqUnlock();
     (void)Esp32Mac_RxStart(DS_ESP32_RX_CHANNEL);
 #endif
+#ifdef DS_ESP32_TX_PROBE
+    Esp32Mac_ProbeInit();
+#endif
 
     return 1;
 }

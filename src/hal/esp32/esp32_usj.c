@@ -156,6 +156,9 @@ static void usjHeartbeat(void)
 #ifdef DS_ESP32_RADIO_PROBE
     Esp32Mac_Witnesses();
 #endif
+#ifdef DS_ESP32_TX_PROBE
+    Esp32Mac_ProbeStep();
+#endif
 }
 #endif
 

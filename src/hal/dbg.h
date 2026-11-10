@@ -133,7 +133,17 @@ enum
     DBG_RADIO_RSN_ESP32_RX_RSSI,
     DBG_RADIO_RSN_ESP32_RX_FCF,
     DBG_RADIO_RSN_ESP32_RX_SEQ,
-    DBG_RADIO_RSN_ESP32_RX_ON
+    DBG_RADIO_RSN_ESP32_RX_ON,
+    /* Its transmit, Ack and energy detection: 13 = a transmission ended, line = its sequence number [7:0] and
+     * how ([15:8]: 0 sent with no Ack asked for, 1 Acked, 2 Acked with Frame Pending, 3 aborted); 14 = the
+     * abort's reason (the MAC's TX_ABORT_STATUS); 15 = the MAC sent an Ack, line = the acknowledged
+     * frame's sequence number; 16 = an energy measurement, line = dBm, signed; 17 = the MAC's CCA_BUSY at
+     * that measurement. */
+    DBG_RADIO_RSN_ESP32_TX_DONE,
+    DBG_RADIO_RSN_ESP32_TX_ABORT,
+    DBG_RADIO_RSN_ESP32_ACK_SENT,
+    DBG_RADIO_RSN_ESP32_ED,
+    DBG_RADIO_RSN_ESP32_CCA_BUSY
 };
 
 /* USB reasons. */

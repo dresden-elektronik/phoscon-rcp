@@ -100,8 +100,25 @@
 #define ESP32_MAC_CTRL_AUTO_ACK_RX (1u << 3)
 #define ESP32_MAC_CTRL_PAN_COORDINATOR (1u << 6)
 #define ESP32_MAC_CTRL_PROMISCUOUS (1u << 7)
+#define ESP32_MAC_CTRL_INF0_ENABLE (1u << 28) /* address filter 0 of the four (multipan) */
+#define ESP32_MAC_INF0_SHORT_ADDR 0x008u
+#define ESP32_MAC_INF0_PAN_ID 0x00Cu
+#define ESP32_MAC_INF0_EXT_ADDR0 0x010u /* the low 32 bits of the extended address */
+#define ESP32_MAC_INF0_EXT_ADDR1 0x014u
 #define ESP32_MAC_CHANNEL 0x048u /* HOP [6:0]: MHz above 2402, 3 + 5 (channel - 11) */
 #define ESP32_MAC_CHANNEL_HOP_MASK 0x7Fu
+#define ESP32_MAC_TX_POWER 0x04Cu /* [4:0] an index: 15 = +20 dBm, else 3 + (dBm + 15) / 3 from -15 dBm */
+#define ESP32_MAC_TX_POWER_MASK 0x1Fu
+#define ESP32_MAC_ED_SCAN_DURATION 0x050u /* in symbols, 16 us */
+#define ESP32_MAC_ED_SCAN_CFG 0x054u
+#define ESP32_MAC_ED_CCA_THRESHOLD_MASK 0xFFu /* [7:0] signed dBm */
+#define ESP32_MAC_ED_SAMPLE_MODE_SHIFT 11u /* 0 maximum, 1 average */
+#define ESP32_MAC_ED_SAMPLE_AVG 1u
+#define ESP32_MAC_ED_CCA_MODE_SHIFT 14u /* 0 carrier, 1 energy, 2 either, 3 both */
+#define ESP32_MAC_ED_CCA_MODE_ED 1u
+#define ESP32_MAC_ED_RSS_SHIFT 16u /* [23:16] signed dBm: the last measurement */
+#define ESP32_MAC_ED_CCA_BUSY (1u << 24)
+#define ESP32_MAC_ACK_TIMEOUT 0x05Cu
 #define ESP32_MAC_EVENT_EN 0x060u
 #define ESP32_MAC_EVENT_STATUS 0x064u /* write 1 to clear */
 #define ESP32_MAC_EVENT_TX_DONE (1u << 0)
@@ -119,9 +136,19 @@
 #define ESP32_MAC_COEX_PTI 0x070u
 #define ESP32_MAC_COEX_PTI_SHIFT 0u
 #define ESP32_MAC_COEX_ACK_PTI_SHIFT 4u
+#define ESP32_MAC_TX_ABORT_EN 0x078u /* bit (reason - 1): which transmit aborts raise TX_ABORT */
+#define ESP32_MAC_TX_ABORT_RX_ACK_TIMEOUT 16u
+#define ESP32_MAC_TX_ABORT_TX_COEX_BREAK 18u
+#define ESP32_MAC_TX_ABORT_TX_SECURITY_ERROR 19u
+#define ESP32_MAC_TX_ABORT_CCA_FAILED 24u
+#define ESP32_MAC_TX_ABORT_CCA_BUSY 25u
 #define ESP32_MAC_RX_STATUS 0x080u /* FILTER_FAIL [3:0], RX_ABORT_STATUS [8:4], RX_STATE [18:16] */
+#define ESP32_MAC_TX_STATUS 0x084u /* TX_STATE [3:0], TX_ABORT_STATUS [8:4] */
+#define ESP32_MAC_TX_ABORT_STATUS_SHIFT 4u
+#define ESP32_MAC_TX_ABORT_STATUS_MASK 0x1Fu
 #define ESP32_MAC_TXRX_STATUS 0x088u
 #define ESP32_MAC_RX_LENGTH 0x0A4u
+#define ESP32_MAC_TXDMA_ADDR 0x0D0u
 #define ESP32_MAC_RXDMA_ADDR 0x0E0u
 #define ESP32_MAC_RXON_DELAY 0x110u
 #define ESP32_MAC_SFD_TIMEOUT_CNT 0x144u

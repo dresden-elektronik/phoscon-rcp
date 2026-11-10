@@ -97,6 +97,13 @@ option(DS_ESP32_PHY_PROBE "xiaoc6: bring the radio's PHY up in the probe image" 
 # records, the MAC's counters with the heartbeat.
 option(DS_ESP32_RADIO_PROBE "xiaoc6: receive in the probe image and report every frame" OFF)
 set(DS_ESP32_RX_CHANNEL "15" CACHE STRING "xiaoc6: the channel the radio probe receives on, 11..26")
+# -DDS_ESP32_TX_PROBE=ON adds transmit: PAN 0xBEE5, address 0x5C6C, hardware Acks on; every other heartbeat
+# an Ack-requesting frame with CCA to 0x1234, every other an energy measurement.
+option(DS_ESP32_TX_PROBE "xiaoc6: transmit and measure energy in the radio probe image" OFF)
+if(DS_ESP32_TX_PROBE)
+  set(DS_ESP32_RADIO_PROBE ON)
+  list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_TX_PROBE=1)
+endif()
 if(DS_ESP32_RADIO_PROBE)
   set(DS_ESP32_PHY_PROBE ON)
   list(APPEND DS_HAL_SOURCES ${DS_SRC_DIR}/hal/esp32/esp32_mac.c)
