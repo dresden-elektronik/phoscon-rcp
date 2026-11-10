@@ -10,12 +10,8 @@
 # (docs/build-and-flash.md §13).
 #
 # What this board builds today: the probe image boots, takes over the watchdogs, keeps the millisecond on
-# SYSTIMER and publishes its records on the USB Serial/JTAG port. The radio is not driven yet; the rcp
-# image is not offered.
-if(DEFINED DS_MODE AND DS_MODE STREQUAL "rcp")
-  message(FATAL_ERROR "xiaoc6: the rcp image needs the radio driver, which this board does not have yet "
-                      "(docs/hardware_esp32.md §12). Build the probe image.")
-endif()
+# SYSTIMER and publishes its records on the USB Serial/JTAG port; the rcp image adds the radio and speaks
+# Spinel on the same port, without MAC security or timed transmit (docs/hardware_esp32.md §12.6).
 
 set(DS_BOARD_SOURCES "${CMAKE_CURRENT_LIST_DIR}/board.c")
 set(DS_ESP32_CHIP "esp32c6")
@@ -90,28 +86,11 @@ if(DS_ESP32_ANTENNA_UFL)
   list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_ANTENNA_UFL=1)
 endif()
 
-# The radio's PHY on Espressif's libraries (hal/esp32/phy/phy.cmake). Until the radio driver lands, a probe
-# image built with -DDS_ESP32_PHY_PROBE=ON brings the PHY up at boot and reports how it went.
-option(DS_ESP32_PHY_PROBE "xiaoc6: bring the radio's PHY up in the probe image" OFF)
-# -DDS_ESP32_RADIO_PROBE=ON adds the MAC: promiscuous receive on DS_ESP32_RX_CHANNEL, every frame a group of
-# records, the MAC's counters with the heartbeat.
-option(DS_ESP32_RADIO_PROBE "xiaoc6: receive in the probe image and report every frame" OFF)
-set(DS_ESP32_RX_CHANNEL "15" CACHE STRING "xiaoc6: the channel the radio probe receives on, 11..26")
-# -DDS_ESP32_TX_PROBE=ON adds transmit: PAN 0xBEE5, address 0x5C6C, hardware Acks on; every other heartbeat
-# an Ack-requesting frame with CCA to 0x1234, every other an energy measurement.
-option(DS_ESP32_TX_PROBE "xiaoc6: transmit and measure energy in the radio probe image" OFF)
-if(DS_ESP32_TX_PROBE)
-  set(DS_ESP32_RADIO_PROBE ON)
-  list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_TX_PROBE=1)
-endif()
-if(DS_ESP32_RADIO_PROBE)
-  set(DS_ESP32_PHY_PROBE ON)
-  list(APPEND DS_HAL_SOURCES ${DS_SRC_DIR}/hal/esp32/esp32_mac.c)
-  list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_RADIO_PROBE=1 -DDS_ESP32_RX_CHANNEL=${DS_ESP32_RX_CHANNEL}u)
-endif()
-if(DS_ESP32_PHY_PROBE)
+# The rcp image drives the radio: the PHY on Espressif's libraries (hal/esp32/phy/phy.cmake) and the MAC behind
+# hal/radio.h (hal/esp32/esp32_radio.c). The probe image drives none and links neither. DS_MODE is declared by the
+# shared build after this file, so this reads the value the command line gave.
+if(DEFINED DS_MODE AND DS_MODE STREQUAL "rcp")
   include(${DS_SRC_DIR}/hal/esp32/phy/phy.cmake)
-  list(APPEND DS_HAL_SOURCES ${DS_ESP32_PHY_SOURCES})
-  list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_PHY_PROBE=1)
+  list(APPEND DS_HAL_SOURCES ${DS_ESP32_PHY_SOURCES} ${DS_SRC_DIR}/hal/esp32/esp32_radio.c)
   list(APPEND DS_INCLUDE_DIRS ${DS_SRC_DIR}/hal/esp32/phy)
 endif()

@@ -6,7 +6,7 @@
 The board keeps its ESP-IDF bootloader and partition table; the image is the app in the ota_0 slot, at
 0x10000 and 2 MiB long, which is the bound. There is no deCONZ NVRAM, no user row and no update flag: the
 identity is the chip's eFuse MAC, which nothing writes. The USB identifiers are the controller's own,
-fixed in silicon. The radio is not driven yet, so its figures are 0. */
+fixed in silicon. */
 #ifndef XIAOC6_BOARD_H
 #define XIAOC6_BOARD_H
 
@@ -29,9 +29,9 @@ static const Board_Descriptor boardXiaoC6 = {
     COM_TX_MAX,
     PRODUCT_LINK_BAUD,
     BOARD_RADIO_ESP32_ON_DIE,
-    0, /* no radio driver yet */
-    0,
-    0,
+    -100, /* a placeholder of the order Espressif's datasheet gives, not measured on this board */
+    10, /* a conservative cap until the board's output is measured; the MAC reaches +20 dBm */
+    10,
     0u, /* the RF switch is GPIO-driven, not a SAMR21 front end (docs/hardware_esp32.md §12.4) */
     0u, /* no region outside the app slot is this image's to keep out of but the bootloader's, below it */
     0u,

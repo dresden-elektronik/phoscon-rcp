@@ -12,7 +12,7 @@ Phoscon RCP (repository `phoscon-rcp`, build artifact `phoscon-rcp`): Spinel rad
 | `rb2` | RaspBee II | `src/hal/samr21/`, UART host link | `docs/hardware_samr21.md` §9 |
 | `cb3` | ConBee III | `src/hal/mg21/`: the `rail` back-end of the `rcp` image; the `own` back-end stays in the tree, unselected (`-DDS_MG21_RADIO=own`); `probe` drives no radio | `docs/hardware_mg21.md` |
 | `cbrb1` | ConBee I, RaspBee I | `src/hal/avr/`, no source shared with `src/hal/samr21/` | `docs/hardware_avr.md` §11 |
-| `xiaoc6` | Seeed XIAO ESP32-C6, an experiment outside the family (`docs/boards.md` §5) | `src/hal/esp32/`, the ESP32 family layer, with `src/hal/esp32/c6/`; `probe` only, no radio yet | `docs/hardware_esp32.md` §12 |
+| `xiaoc6` | Seeed XIAO ESP32-C6, an experiment outside the family (`docs/boards.md` §5) | `src/hal/esp32/`, the ESP32 family layer, with `src/hal/esp32/c6/`; `probe` drives no radio, `rcp` drives it on Espressif's PHY libraries | `docs/hardware_esp32.md` §12 |
 
 What each board supports is `docs/protocol.md`, and what has run on it is `docs/testing.md`. Do not restate either here.
 

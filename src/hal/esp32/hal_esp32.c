@@ -14,12 +14,6 @@ flasher trap's request lands here as an ordinary reset (docs/build-and-flash.md 
 #include "dbg.h"
 #include "esp32_clock.h"
 #include "esp32_gpio.h"
-#ifdef DS_ESP32_PHY_PROBE
-#include "esp32_phy.h"
-#endif
-#ifdef DS_ESP32_RADIO_PROBE
-#include "esp32_mac.h"
-#endif
 #include "esp32_panic.h"
 #include "esp32_regs.h"
 #include "esp32_wdt.h"
@@ -109,20 +103,6 @@ int HAL_Init(void)
     Clock_TickCountedByIrq(1);
     HAL_IrqUnlock();
 
-#ifdef DS_ESP32_PHY_PROBE
-    /* With the millisecond running: the calibration takes tens of milliseconds, and its duration is one
-     * of the records. */
-    (void)Esp32Phy_Init();
-#endif
-#ifdef DS_ESP32_RADIO_PROBE
-    HAL_IrqLock();
-    (void)Esp32Mac_Init();
-    HAL_IrqUnlock();
-    (void)Esp32Mac_RxStart(DS_ESP32_RX_CHANNEL);
-#endif
-#ifdef DS_ESP32_TX_PROBE
-    Esp32Mac_ProbeInit();
-#endif
 
     return 1;
 }

@@ -6,7 +6,7 @@ Section numbers continue `docs/hardware_avr.md`, so this document starts at §12
 
 ## 12. ESP32 802.15.4 parts
 
-The probe image runs on the XIAO ESP32-C6 and can bring its PHY up, receive, transmit and acknowledge 802.15.4 frames; no `rcp` image is offered yet. The TRM documents every block the probe image uses but not the 802.15.4 radio: its registers are public only as ESP-IDF's `ieee802154_reg.h` and driver, and its RF bring-up and calibration only as Espressif's closed `libphy.a` and `libbtbb.a`.
+Both images run on the XIAO ESP32-C6: the probe image, which drives no radio, and the `rcp` image, whose radio back-end passes the ConBee II rigs of `docs/testing.md` §3 (§12.6). The TRM documents every block the images use but not the 802.15.4 radio: its registers are public only as ESP-IDF's `ieee802154_reg.h` and driver, and its RF bring-up and calibration only as Espressif's closed `libphy.a` and `libbtbb.a`.
 
 ### 12.1 The family layer
 
@@ -80,7 +80,7 @@ The USB link resets the chip on its CDC line state (TRM Table 32.3-2):
 
 A host that opens the port with both lines asserted, pyserial's default and a plain open, leaves the board running, and so does closing it. One that lowers DTR before RTS passes through RTS=1/DTR=0 and resets it; pyserial with `dtr=False, rts=False` does exactly that on the bench board. esptool uses the same states to reach download mode with the running image untouched, so no button is needed to flash.
 
-The link has no line rate and no framing errors; a host that is not reading leaves the IN FIFO full, the chunk waits and the record queue drops its oldest. The FIFO takes no octet while a packet waits for the host, and only `SERIAL_IN_EMPTY` says the host took it, so the driver pumps from that interrupt: a reply whose chunk met a full FIFO otherwise left the board with the next reply, every Spinel answer one request late. A 64-octet packet is followed by a zero-length one, without which a host holds it, as ESP-IDF's driver does. The USB start-of-frame number moves while a host is attached, which the heartbeat reports: on the bench board it advances by 2000 frames between two 2 s heartbeats, the host's millisecond and the board's agreeing. The USB start-of-frame number moves while a host is attached, which the heartbeat reports: on the bench board it advances by 2000 frames between two 2 s heartbeats, the host's millisecond and the board's agreeing.
+The link has no line rate and no framing errors; a host that is not reading leaves the IN FIFO full, the chunk waits and the record queue drops its oldest. The FIFO takes no octet while a packet waits for the host, and only `SERIAL_IN_EMPTY` says the host took it, so the driver pumps from that interrupt: a reply whose chunk met a full FIFO otherwise left the board with the next reply, every Spinel answer one request late. A 64-octet packet is followed by a zero-length one, without which a host holds it, as ESP-IDF's driver does. The USB start-of-frame number moves while a host is attached, which the heartbeat reports: on the bench board it advances by 2000 frames between two 2 s heartbeats, the host's millisecond and the board's agreeing.
 
 Two audits of `docs/testing.md` §5 do not run as written on this board:
 
@@ -91,7 +91,7 @@ Two audits of `docs/testing.md` §5 do not run as written on this board:
 
 ### 12.5 The radio's PHY
 
-The PHY's bring-up runs on the bench XIAO and the radio receives with it (§12.6). The sequence, written from scratch after reading ESP-IDF's `esp_phy`, `modem_clock` and start-up code:
+The `rcp` image brings the PHY up at boot, before its radio back-end (§12.6). The sequence, written from scratch after reading ESP-IDF's `esp_phy`, `modem_clock` and start-up code:
 
 | step | why |
 |---|---|
@@ -111,22 +111,29 @@ The PHY's bring-up runs on the bench XIAO and the radio receives with it (§12.6
 
 ### 12.6 The 802.15.4 MAC
 
-The MAC receives, transmits and acknowledges on the bench XIAO, against a ConBee II on channel 15:
+`hal/esp32/esp32_radio.c` is the `rcp` image's radio back-end. On the bench XIAO against a ConBee II, on channels 26 and 25:
 
-| probe image | what ran |
+| rig | result |
 |---|---|
-| `-DDS_ESP32_RADIO_PROBE=ON`: promiscuous receive, every frame reported | of 30 frames the ConBee II sent, all 30, at −40 dBm across the bench, besides the Zigbee traffic already on the channel |
-| `-DDS_ESP32_TX_PROBE=ON`: an address (PAN `0xBEE5`, `0x5C6C`), the hardware Acks on, and on alternate heartbeats an Ack-requesting frame with CCA to the ConBee II at 0 dBm, or an energy measurement | every frame Acked by the ConBee II; all 13 Ack-requesting frames the ConBee II sent Acked by the XIAO's hardware; with the ConBee II reset, every frame ends in the MAC's Ack timeout; energy −93 to −88 dBm on the quiet channel |
+| `tools/cb3_rcp_check.py` | every cell: promiscuous receive, the retune, the filter, transmit, `OK` and `NO_ACK` |
+| `tools/rcp_pair.py` | every cell, both ways: the filter per mode, the Ack policy, the Frame Pending bit, frames longer than one USB packet |
+| `tools/rcp_matrix.py` | every cell, both directions |
+| frames of 20 to 125 octets to the XIAO | all reported byte-identical |
+| broadcast bursts from the XIAO | 1 to 4 % lost on channel 26 at 0 dBm, each reported sent; none of 120 at +10 dBm, 1 of 120 on channel 25 at −10 dBm. Two ConBee IIs on channel 26 lose none of 160, so the loss is the XIAO's; its cause is open. Channel 26 is also BLE's advertising channel 39 |
 
 | fact | consequence |
 |---|---|
-| the TRM has no chapter on it | `hal/esp32/esp32_mac.c` is written from ESP-IDF's `ieee802154_reg.h` and its driver; the MAC's layout is the same on the C6, H2 and C5 below its debug registers (§12.1) |
+| the TRM has no chapter on it | `hal/esp32/esp32_radio.c` is written from ESP-IDF's `ieee802154_reg.h` and its driver; the MAC's layout is the same on the C6, H2 and C5 below its debug registers (§12.1) |
 | it writes received frames to RAM by DMA, and the access filters (APM) admit only the HP CPU until an app clears them, which ESP-IDF's app start does and its bootloader does not | `HAL_Init` clears them; without it the MAC takes a frame in, its `RX_LENGTH` says so, and the buffer stays empty |
-| the receive buffer holds the PHR's length octet and the PSDU, whose two FCS octets are replaced by the frame's RSSI, signed dBm, and LQI | the MAC checks the CRC itself and does not keep it |
+| the receive buffer holds the PHR's length octet and the PSDU, whose two FCS octets are replaced by the frame's RSSI, signed dBm, and LQI | the MAC checks the CRC itself and does not keep it; the loop computes the FCS again before it hands a frame up, so a host sees the PSDU on air |
 | the channel is its `HOP` field, MHz above 2402: 3 + 5 (channel − 11) | — |
 | a receive abort raises an event only for the reasons enabled in `RX_ABORT_INTR_CTRL`; a bad CRC or a preamble with no frame it recovers from by itself and counts in its own counters. After a coexistence break it stays idle | the driver enables that reason too, and re-arms |
 | the coexistence arbiter's priorities for the MAC are set as if no other radio were there, as ESP-IDF does without its coexistence library | no coexistence library is linked |
 | on transmit, the buffer is the length octet, counting the two FCS octets the MAC appends, then the PSDU without them; an Ack Request makes the MAC wait for the Ack, which it receives into the receive buffer with its hardware Ack reception on, and a missing one ends in transmit abort 16 | the driver waits in its own state for `ACK_RX_DONE` or the abort |
+| `STOP` ends a receive or a transmission, and a receive takes a new channel only from a fresh receive command after one | the driver stops the MAC before every command and waits, bounded, until `TXRX_STATE` reads idle |
+| `TX_DONE` and the Ack's event, or the Ack-timeout abort, can arrive in one interrupt | the vector handles them in that order in one pass |
+| it has no CSMA-CA of its own: `CCA_TX_START` is one CCA and the transmission after it | the backoff is software's, on the MAC's timer 0, with a random count from the chip's RNG; retries too |
+| register `0x6C` holds the next hardware Ack's Frame Pending bit in bit 0 and the Ack-transmit timeout in `[31:16]` | only bit 0 is written: a whole-word write clears the timeout, and every hardware Ack then fails |
 | with its hardware Ack transmission on, it acknowledges a 2003 or 2006 frame that passes its address filter by itself, and raises `ACK_TX_DONE`; told to receive again before then, it sends the Ack and idles | the driver waits for `ACK_TX_DONE`, or the two receive aborts that end an Ack, before it re-arms. 2015 frames' Enhanced Acks are software's, as ESP-IDF builds them |
 | CCA is energy-based, at ESP-IDF's −60 dBm over 8 symbols; an energy measurement's result is `ED_SCAN_CFG`'s `ED_RSS`, in dBm | — |
 | transmit power is a 4-bit index: 15 for +20 dBm, else 3 + (dBm + 15) / 3 from −15 dBm (ESP-IDF's mapping) | — |

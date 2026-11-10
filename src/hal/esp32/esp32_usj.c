@@ -25,9 +25,6 @@ esptool reaches the ROM's download mode with this image running; this file leave
 #include "dbg.h"
 #include "esp32_gpio.h"
 #include "esp32_irq.h"
-#ifdef DS_ESP32_RADIO_PROBE
-#include "esp32_mac.h"
-#endif
 #include "esp32_regs.h"
 #include "hal.h"
 #include "u_bstream.h"
@@ -216,12 +213,6 @@ static void usjHeartbeat(void)
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)(ms / 1000u), DBG_WITNESS_RSN_ESP32_HEARTBEAT);
     Debug_Emit(DBG_COMP_WITNESS, usjRxOctets, DBG_WITNESS_RSN_ESP32_USJ_RX_OCTETS);
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)USJ(ESP32_USJ_FRAM_NUM), DBG_WITNESS_RSN_ESP32_USJ_FRAME);
-#ifdef DS_ESP32_RADIO_PROBE
-    Esp32Mac_Witnesses();
-#endif
-#ifdef DS_ESP32_TX_PROBE
-    Esp32Mac_ProbeStep();
-#endif
 }
 #endif
 

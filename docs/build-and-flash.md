@@ -265,18 +265,20 @@ To release, in this order:
 An ESP32 board keeps its ESP-IDF bootloader and partition table; the image is an ESP-IDF app for the board's app slot, written by esptool from the ELF and flashed by esptool. No GCF container, no GCFFlasher and no release is involved (`docs/hardware_esp32.md`).
 
 ```sh
-cmake -B build/fw-xiaoc6 -S src -G Ninja -DDEBOARD=xiaoc6 -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/riscv32-esp.cmake
-cmake --build build/fw-xiaoc6
+cmake -B build/fw-xiaoc6-rcp -S src -G Ninja -DDEBOARD=xiaoc6 -DDS_MODE=rcp -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/riscv32-esp.cmake
+cmake --build build/fw-xiaoc6-rcp
 .venv-tools/bin/python tools/esp32_flash.py --board xiaoc6 --port <port> \
-  build/fw-xiaoc6/phoscon-rcp.bin --elf build/fw-xiaoc6/phoscon-rcp
+  build/fw-xiaoc6-rcp/phoscon-rcp.bin --elf build/fw-xiaoc6-rcp/phoscon-rcp
 ```
+
+Without `-DDS_MODE=rcp` the build is the probe image, which links no PHY library.
 
 | item | what |
 |---|---|
 | toolchain | Espressif's `riscv32-esp-elf` from its crosstool-NG release `esp-16.1.0_20260609`, the build ESP-IDF pins, unpacked into `~/opt/riscv32-esp-elf-16.1.0_20260609/` or named with `-DDS_RISCV_ESP_BIN=<dir>` |
 | esptool | 5.6.0 in `.venv-tools/` (`python3 -m venv .venv-tools && .venv-tools/bin/pip install esptool==5.6.0`); the build runs its `elf2image` |
 | the image | `phoscon-rcp.bin` is the app image, not a flat binary; the image guard checks it fits the app slot |
-| the PHY | `-DDS_ESP32_PHY_PROBE=ON` links Espressif's PHY libraries into the probe image and brings the PHY up at boot, `-DDS_ESP32_RADIO_PROBE=ON` adds promiscuous receive on `-DDS_ESP32_RX_CHANNEL=<11..26>` (15 by default) with every frame a record, and `-DDS_ESP32_TX_PROBE=ON` transmit, Acks and energy detection against a peer at `0x1234`; configure fetches them with `tools/fetch_esp_phy.py` into `~/.cache/phoscon-rcp/esp-phy/` (or `-DDS_ESP_PHY_CACHE=<dir>`), each file checked against its SHA-256, and `--check` verifies the cache |
+| the PHY | the `rcp` image links Espressif's PHY libraries; configure fetches them with `tools/fetch_esp_phy.py` into `~/.cache/phoscon-rcp/esp-phy/` (or `-DDS_ESP_PHY_CACHE=<dir>`), each file checked against its SHA-256, and `--check` verifies the cache |
 | the guard | `tools/esp32_check.py --board <board> <image> --elf <elf>`: the image's magic, chip and revision range, checksum and hash, the app descriptor, exactly two flash segments at their page offsets, RAM inside the app's bound, the slot, and that it was written from that ELF. `tools/esp32_flash.py` runs it, compares the board's partition table with the one it records, writes the slot, and reads it back |
 | what is never written | anything below the app slot, and the eFuses: the wrapper issues only `read-flash` and `write-flash` at the slot's origin |
 | recovery | the ROM's download mode, which esptool reaches over the USB line state; BOOT held while plugging in if a board stops answering. The factory app is the slot's range of a full `read-flash` taken before the first write |

@@ -95,6 +95,8 @@
 #define ESP32_MAC_CMD_CCA_TX_START 0x43u
 #define ESP32_MAC_CMD_ED_START 0x44u
 #define ESP32_MAC_CMD_STOP 0x45u
+#define ESP32_MAC_CMD_TIMER0_START 0x4Cu
+#define ESP32_MAC_CMD_TIMER0_STOP 0x4Du
 #define ESP32_MAC_CTRL_CFG 0x004u
 #define ESP32_MAC_CTRL_AUTO_ACK_TX (1u << 0)
 #define ESP32_MAC_CTRL_AUTO_ACK_RX (1u << 3)
@@ -128,6 +130,7 @@
 #define ESP32_MAC_EVENT_RX_ABORT (1u << 4)
 #define ESP32_MAC_EVENT_TX_ABORT (1u << 5)
 #define ESP32_MAC_EVENT_ED_DONE (1u << 6)
+#define ESP32_MAC_EVENT_TIMER0_OVERFLOW (1u << 8)
 #define ESP32_MAC_EVENT_ALL 0x1FFFu
 #define ESP32_MAC_RX_ABORT_EN 0x068u /* bit (reason - 1): which receive aborts raise RX_ABORT */
 #define ESP32_MAC_RX_ABORT_COEX_BREAK 7u
@@ -146,8 +149,13 @@
 #define ESP32_MAC_TX_STATUS 0x084u /* TX_STATE [3:0], TX_ABORT_STATUS [8:4] */
 #define ESP32_MAC_TX_ABORT_STATUS_SHIFT 4u
 #define ESP32_MAC_TX_ABORT_STATUS_MASK 0x1Fu
-#define ESP32_MAC_TXRX_STATUS 0x088u
+#define ESP32_MAC_TXRX_STATUS 0x088u /* TXRX_STATE [3:0]: 0 idle; RX_PROC 9, TX_PROC 8 */
+#define ESP32_MAC_TXRX_STATE_MASK 0xFu
 #define ESP32_MAC_RX_LENGTH 0x0A4u
+#define ESP32_MAC_TIMER0_THRESHOLD 0x0A8u /* microseconds */
+#define ESP32_MAC_ACK_FRAME_PENDING_EN 0x06Cu
+#define ESP32_MAC_ACK_FRAME_PENDING (1u << 0) /* the Frame Pending bit of the next hardware Ack */
+#define ESP32_MAC_ACK_TX_ACK_TIMEOUT_SHIFT 16u /* [31:16] the Ack-transmit timeout: never cleared */
 #define ESP32_MAC_TXDMA_ADDR 0x0D0u
 #define ESP32_MAC_RXDMA_ADDR 0x0E0u
 #define ESP32_MAC_RXON_DELAY 0x110u

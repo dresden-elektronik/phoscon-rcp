@@ -64,6 +64,6 @@ Boards outside the family that this tree builds for, to learn a silicon; no rele
 
 | target | board | silicon layer | state |
 |---|---|---|---|
-| `xiaoc6` | Seeed Studio XIAO ESP32-C6 | `src/hal/esp32/` with `src/hal/esp32/c6/` (`docs/hardware_esp32.md`) | the probe image runs; no radio yet |
+| `xiaoc6` | Seeed Studio XIAO ESP32-C6 | `src/hal/esp32/` with `src/hal/esp32/c6/` (`docs/hardware_esp32.md`) | the probe and `rcp` images run; the radio passes the ConBee II rigs |
 
 An ESP32 board keeps its ESP-IDF bootloader and partition table, and its image is flashed with esptool into the app slot, not packaged as a GCF container (`docs/build-and-flash.md` §13).

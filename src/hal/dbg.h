@@ -125,25 +125,7 @@ enum
     DBG_RADIO_RSN_RX_OVERFLOW,
     DBG_RADIO_RSN_RX_BAD_RECORD,
     DBG_RADIO_RSN_OFF_TIMEOUT,
-    DBG_RADIO_RSN_STATE,
-    /* The ESP32 802.15.4 MAC (hal/esp32/esp32_mac.c), one group per received frame: 8 = its length
-     * (line [7:0]) and LQI ([15:8]); 9 = its RSSI in dBm, signed; 10 = its frame control field; 11 = its
-     * sequence number. 12 = the MAC is receiving; line = the channel. */
-    DBG_RADIO_RSN_ESP32_RX_LEN,
-    DBG_RADIO_RSN_ESP32_RX_RSSI,
-    DBG_RADIO_RSN_ESP32_RX_FCF,
-    DBG_RADIO_RSN_ESP32_RX_SEQ,
-    DBG_RADIO_RSN_ESP32_RX_ON,
-    /* Its transmit, Ack and energy detection: 13 = a transmission ended, line = its sequence number [7:0] and
-     * how ([15:8]: 0 sent with no Ack asked for, 1 Acked, 2 Acked with Frame Pending, 3 aborted); 14 = the
-     * abort's reason (the MAC's TX_ABORT_STATUS); 15 = the MAC sent an Ack, line = the acknowledged
-     * frame's sequence number; 16 = an energy measurement, line = dBm, signed; 17 = the MAC's CCA_BUSY at
-     * that measurement. */
-    DBG_RADIO_RSN_ESP32_TX_DONE,
-    DBG_RADIO_RSN_ESP32_TX_ABORT,
-    DBG_RADIO_RSN_ESP32_ACK_SENT,
-    DBG_RADIO_RSN_ESP32_ED,
-    DBG_RADIO_RSN_ESP32_CCA_BUSY
+    DBG_RADIO_RSN_STATE
 };
 
 /* USB reasons. */
@@ -553,21 +535,7 @@ enum
     DBG_WITNESS_RSN_ESP32_PHY_MS,          /* how long the PHY's bring-up and calibration took, in ms */
     DBG_WITNESS_RSN_ESP32_BTBB_MS,         /* how long the baseband's bring-up took, in ms */
     DBG_WITNESS_RSN_ESP32_MODEM_CLK,       /* MODEM_SYSCON CLK_CONF high half: ETM 6, ZB_APB 7, ZB_MAC 8 */
-    DBG_WITNESS_RSN_ESP32_MODEM_CLK1,      /* MODEM_SYSCON CLK_CONF1 [31:13] >> 13: FE_80M 0 .. BT 5 */
-    /* The ESP32 802.15.4 MAC's live counters, with the link's heartbeat (hal/esp32/esp32_mac.c): frames
-     * delivered and receive aborts since boot, and the MAC's own counters (16-bit, wrapping). */
-    DBG_WITNESS_RSN_ESP32_MAC_FRAMES,
-    DBG_WITNESS_RSN_ESP32_MAC_ABORTS,
-    DBG_WITNESS_RSN_ESP32_MAC_CRC_ERRORS,  /* CRC_ERROR_CNT */
-    DBG_WITNESS_RSN_ESP32_MAC_SFD_TIMEOUTS, /* SFD_TIMEOUT_CNT: a preamble without a frame after it */
-    DBG_WITNESS_RSN_ESP32_MAC_NO_RSS,      /* NO_RSS_DETECT_CNT */
-    DBG_WITNESS_RSN_ESP32_MAC_RX_STATUS,   /* RX_STATUS low half: FILTER_FAIL [3:0], RX_ABORT [8:4] */
-    DBG_WITNESS_RSN_ESP32_MAC_RX_STATE,    /* RX_STATUS high half: RX_STATE [2:0], PREAMBLE 4, SFD 5 */
-    DBG_WITNESS_RSN_ESP32_MAC_TXRX_STATUS, /* TXRX_STATUS low half */
-    DBG_WITNESS_RSN_ESP32_MAC_COEX_ABORTS, /* RX_ABORT_COEX_CNT */
-    DBG_WITNESS_RSN_ESP32_MAC_CTRL,        /* CTRL_CFG low half: AUTO_ACK_TX 0, AUTO_ACK_RX 3, PROMISCUOUS 7 */
-    DBG_WITNESS_RSN_ESP32_MAC_CTRL_HI,     /* CTRL_CFG high half */
-    DBG_WITNESS_RSN_ESP32_MAC_RX_LENGTH    /* RX_LENGTH: the length the MAC took from the last PHR */
+    DBG_WITNESS_RSN_ESP32_MODEM_CLK1       /* MODEM_SYSCON CLK_CONF1 [31:13] >> 13: FE_80M 0 .. BT 5 */
 };
 
 /* Register monitor replies (DBG_COMP_MON, app/monitor_app.c, docs/hardware_mg21.md §10.5). One
