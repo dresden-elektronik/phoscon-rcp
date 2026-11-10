@@ -6,12 +6,16 @@ The sequence is the one ESP-IDF's esp_phy component runs before its 802.15.4 dri
 written from scratch after reading ESP-IDF v5.4.1's esp_phy and modem_clock sources (docs/hardware_esp32.md
 §12.5):
 
-  1. the modem clocks: for the PHY the analog I2C master and the front end's common and private clocks,
+  1. the modem clock domains' gating maps, so that each runs in the active power state - the bootloader
+     leaves all but three gated there, and ESP-IDF opens them when its first radio comes up; then the modem
+     clocks, and a reset pulse over the radio's blocks: for the PHY the analog I2C master and the front end's common and private clocks,
      for the 802.15.4 MAC its APB and MAC clocks, the shared BT/802.15.4 baseband, the event matrix and
      the coexistence block - the gates ESP-IDF's modem_clock.c opens for its PHY and IEEE802154 modules;
   2. the ROM's CPU frequency: the ROM's delays count CPU cycles, and the bootloader set them for the
      clock it left, not for the one esp32_clock.c switched to;
-  3. register_chipv7_phy with the chip's default init table and a full calibration into a buffer this
+  3. phy_init_param_set(1) on a part whose PHY serves Wi-Fi, Bluetooth and 802.15.4 alike, so that the
+     PHY does not come up in Wi-Fi receive - where the coexistence arbiter breaks an 802.15.4 receive off;
+     then register_chipv7_phy with the chip's default init table and a full calibration into a buffer this
      file owns: the archive's entry point;
   4. bt_bb_v2_init_cmplx: the baseband the 802.15.4 MAC shares with Bluetooth.
 
@@ -50,8 +54,10 @@ typedef struct
 typedef char esp32PhyCalDataSize[(sizeof(Esp32Phy_CalData) == PHY_CAL_DATA_LEN) ? 1 : -1];
 
 /* The entry points, in the archives and the mask ROM. */
+void phy_init_param_set(uint8_t param);
 int register_chipv7_phy(const Esp32Phy_InitData *initData, Esp32Phy_CalData *calData, int calMode);
 void bt_bb_v2_init_cmplx(int printVersion);
+void phy_param_track_tot(int enWifi, int enBle154);
 void ets_update_cpu_frequency(uint32_t ticksPerUs);
 
 static const Esp32Phy_InitData phyInitData = {{
@@ -60,15 +66,30 @@ static const Esp32Phy_InitData phyInitData = {{
 
 static Esp32Phy_CalData phyCal;
 
+/* A software reset does not power the modem domain down, so its blocks are as its last user left them -
+ * another image, or this one before the reset. One reset pulse over the radio's blocks, with their clocks
+ * running, starts them from their reset state. */
+static void phyModemReset(void)
+{
+    ESP32_REG(ESP32_MODEM_SYSCON_BASE, ESP32_MODEM_SYSCON_MODEM_RST_CONF) |= ESP32_MODEM_SYSCON_RST_RADIO;
+    HAL_Dsb();
+    ESP32_REG(ESP32_MODEM_SYSCON_BASE, ESP32_MODEM_SYSCON_MODEM_RST_CONF) &= ~ESP32_MODEM_SYSCON_RST_RADIO;
+    HAL_Dsb();
+}
+
 static void phyClocksOn(void)
 {
+    ESP32_REG(ESP32_MODEM_SYSCON_BASE, ESP32_MODEM_SYSCON_CLK_CONF_POWER_ST) |= ESP32_MODEM_SYSCON_ICG_RUN;
+    ESP32_REG(ESP32_MODEM_LPCON_BASE, ESP32_MODEM_LPCON_CLK_CONF_POWER_ST) |= ESP32_MODEM_LPCON_ICG_RUN;
+
     ESP32_REG(ESP32_MODEM_LPCON_BASE, ESP32_MODEM_LPCON_CLK_CONF) |=
         ESP32_MODEM_LPCON_CLK_I2C_MST_EN | ESP32_MODEM_LPCON_CLK_COEX_EN;
     ESP32_REG(ESP32_MODEM_SYSCON_BASE, ESP32_MODEM_SYSCON_CLK_CONF1) |=
         ESP32_MODEM_SYSCON_CLK_FE_APB_EN | ESP32_MODEM_SYSCON_CLK_FE_80M_EN | ESP32_MODEM_SYSCON_CLK_FE_160M_EN
         | ESP32_MODEM_SYSCON_CLK_FE_CAL_160M_EN | ESP32_MODEM_SYSCON_CLK_BT_APB_EN | ESP32_MODEM_SYSCON_CLK_BT_EN;
     ESP32_REG(ESP32_MODEM_SYSCON_BASE, ESP32_MODEM_SYSCON_CLK_CONF) |=
-        ESP32_MODEM_SYSCON_CLK_ETM_EN | ESP32_MODEM_SYSCON_CLK_ZB_APB_EN | ESP32_MODEM_SYSCON_CLK_ZB_MAC_EN;
+        ESP32_MODEM_SYSCON_CLK_ETM_EN | ESP32_MODEM_SYSCON_CLK_ZB_APB_EN | ESP32_MODEM_SYSCON_CLK_ZB_MAC_EN
+        | ESP32_MODEM_SYSCON_CLK_SEC_AND_BLE_TIMER;
     HAL_Dsb();
 }
 
@@ -101,6 +122,7 @@ int Esp32Phy_Init(void)
     int result;
 
     phyClocksOn();
+    phyModemReset();
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)(ESP32_REG(ESP32_MODEM_SYSCON_BASE, ESP32_MODEM_SYSCON_CLK_CONF) >> 16),
                DBG_WITNESS_RSN_ESP32_MODEM_CLK);
     Debug_Emit(DBG_COMP_WITNESS,
@@ -110,6 +132,8 @@ int Esp32Phy_Init(void)
     ets_update_cpu_frequency(Esp32Clock_CpuHz() / 1000000u);
     phyStationMac(phyCal.mac);
 
+    phy_init_param_set(ESP32_PHY_COMBO_MODULE);
+
     t0 = phyNowMs();
     result = register_chipv7_phy(&phyInitData, &phyCal, PHY_RF_CAL_FULL);
     t1 = phyNowMs();
@@ -117,6 +141,9 @@ int Esp32Phy_Init(void)
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)(t1 - t0), DBG_WITNESS_RSN_ESP32_PHY_MS);
 
     bt_bb_v2_init_cmplx(0);
+    /* What ESP-IDF's esp_phy_enable does right after: one round of the PLL tracking for the Bluetooth and
+     * 802.15.4 side, which ESP-IDF then repeats from a timer. */
+    phy_param_track_tot(0, 1);
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)(phyNowMs() - t1), DBG_WITNESS_RSN_ESP32_BTBB_MS);
 
     return result == 0 || result == PHY_CAL_DATA_CHECK_FAIL;

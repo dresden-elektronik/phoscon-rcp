@@ -6,7 +6,7 @@ Section numbers continue `docs/hardware_avr.md`, so this document starts at §12
 
 ## 12. ESP32 802.15.4 parts
 
-The probe image runs on the XIAO ESP32-C6 and can bring its PHY up; the 802.15.4 MAC is not driven yet, and no `rcp` image is offered. The TRM documents every block the probe image uses but not the 802.15.4 radio: its registers are public only as ESP-IDF's `ieee802154_reg.h` and driver, and its RF bring-up and calibration only as Espressif's closed `libphy.a` and `libbtbb.a`.
+The probe image runs on the XIAO ESP32-C6 and can bring its PHY up and receive 802.15.4 frames; transmit is not driven yet, and no `rcp` image is offered. The TRM documents every block the probe image uses but not the 802.15.4 radio: its registers are public only as ESP-IDF's `ieee802154_reg.h` and driver, and its RF bring-up and calibration only as Espressif's closed `libphy.a` and `libbtbb.a`.
 
 ### 12.1 The family layer
 
@@ -91,14 +91,34 @@ Two audits of `docs/testing.md` §5 do not run as written on this board:
 
 ### 12.5 The radio's PHY
 
-The PHY's bring-up runs on the bench XIAO: a probe image built with `-DDS_ESP32_PHY_PROBE=ON` opens the modem clocks and calls the archive's entry point, which returns after a full calibration of 45 ms, then the baseband's, and the board keeps running. That the RF path works is not shown until the 802.15.4 MAC, not driven yet, receives a frame.
+The PHY's bring-up runs on the bench XIAO and the radio receives with it (§12.6). The sequence, written from scratch after reading ESP-IDF's `esp_phy`, `modem_clock` and start-up code:
+
+| step | why |
+|---|---|
+| the modem clock domains' ICG maps: each domain set to run in the PMU's active state (and its modem state where ESP-IDF's initial map has it) | the bootloader opens only `MODEM_APB`, the I2C master and `LP_APB`; ESP-IDF opens the rest when its first radio comes up. Left gated, the coexistence arbiter breaks the first receive off and the MAC hears nothing after it, whatever the clock enables say |
+| the modem clock gates ESP-IDF opens for its PHY and 802.15.4 modules, and the modem security and BLE-timer clocks | the analog I2C master and coexistence in `MODEM_LPCON`; the front end, the shared BT/802.15.4 baseband, the 802.15.4 APB and MAC clocks and the event matrix in `MODEM_SYSCON` |
+| a reset pulse over the radio's modem blocks | a software reset does not power the modem domain down, so its blocks are as their last user left them |
+| `ets_update_cpu_frequency(160)` | the ROM's delays count CPU cycles at the rate the bootloader set |
+| `phy_init_param_set(1)` | the PHY serves Wi-Fi, BLE and 802.15.4 (ESP-IDF's `SOC_PHY_COMBO_MODULE`), and must not come up in Wi-Fi receive |
+| `register_chipv7_phy(init table, empty record, full)` | the archive's entry point: answers 1, "the record failed its check", and calibrates in full in about 45 ms. Every boot does, since the firmware keeps nothing |
+| `bt_bb_v2_init_cmplx`, then one `phy_param_track_tot(0, 1)` | the baseband, and the PLL tracking ESP-IDF then repeats from a timer, which this tree does not yet |
 
 | item | state |
 |---|---|
-| the MAC's registers | ESP-IDF's `soc/esp32c6/register/soc/ieee802154_reg.h` and `components/ieee802154/driver`, Apache-2.0: read, never copied |
 | the libraries | `esp-phy-lib`'s `esp32c6/libphy.a` and `libbtbb.a` at the commit ESP-IDF v5.4.1 pins, Apache-2.0, fetched with the ROM address lists of the same tag (`src/lib/PROVENANCE.md`). They reach 94 outside symbols: 87 in the ROM's PHY list, `ets_delay_us` in its main list, `__divdi3` in libgcc, and five the host supplies, `memcpy`, `memset`, `sprintf`, `phy_printf` and `rtc_clk_xtal_freq_get` (`hal/esp32/phy/phy_shims.c`). Neither reaches a coexistence or Wi-Fi library. Their RAM code is in ESP-IDF's `.iram1` sections, which the linker script places with this tree's |
-| the modem clocks | the gates ESP-IDF opens for its PHY and 802.15.4 modules: the analog I2C master and coexistence in `MODEM_LPCON`; the front end's APB, 80, 160 and calibration clocks, the shared BT/802.15.4 baseband, the 802.15.4 APB and MAC clocks and the event matrix in `MODEM_SYSCON` |
-| the ROM's delays | they count CPU cycles at the rate the bootloader set; `ets_update_cpu_frequency` gets the 160 MHz before the PHY runs |
-| the entry point | `register_chipv7_phy(init table, calibration record, full)`: the init table is ESP-IDF's default for the chip with its 20 dBm cap, evaluated by the fetch tool; the record starts empty, so the call answers 1, "the record failed its check", and calibrates in full. Every boot does, since the firmware keeps nothing |
-| the baseband | `bt_bb_v2_init_cmplx`, after the PHY |
-| not done | the PHY's PLL tracking, which ESP-IDF repeats from a timer; transmit power per channel |
+| the init table | ESP-IDF's default for the chip with its 20 dBm cap, evaluated by the fetch tool |
+| not done | the repeated PLL tracking; transmit power per channel |
+
+### 12.6 The 802.15.4 MAC
+
+The MAC receives on the bench XIAO: a probe image built with `-DDS_ESP32_RADIO_PROBE=ON` listens promiscuously on one channel and reports every frame, and of 30 frames a ConBee II sent on channel 15 it reported all 30, at −40 dBm across the bench, besides the Zigbee traffic already on that channel.
+
+| fact | consequence |
+|---|---|
+| the TRM has no chapter on it | `hal/esp32/esp32_mac.c` is written from ESP-IDF's `ieee802154_reg.h` and its driver; the MAC's layout is the same on the C6, H2 and C5 below its debug registers (§12.1) |
+| it writes received frames to RAM by DMA, and the access filters (APM) admit only the HP CPU until an app clears them, which ESP-IDF's app start does and its bootloader does not | `HAL_Init` clears them; without it the MAC takes a frame in, its `RX_LENGTH` says so, and the buffer stays empty |
+| the receive buffer holds the PHR's length octet and the PSDU, whose two FCS octets are replaced by the frame's RSSI, signed dBm, and LQI | the MAC checks the CRC itself and does not keep it |
+| the channel is its `HOP` field, MHz above 2402: 3 + 5 (channel − 11) | — |
+| a receive abort raises an event only for the reasons enabled in `RX_ABORT_INTR_CTRL`; a bad CRC or a preamble with no frame it recovers from by itself and counts in its own counters. After a coexistence break it stays idle | the driver enables that reason too, and re-arms |
+| the coexistence arbiter's priorities for the MAC are set as if no other radio were there, as ESP-IDF does without its coexistence library | no coexistence library is linked |
+| the LQI it reports is a small number, 10 or 11 for a frame at −40 dBm | its scale is the hardware's; how it maps onto 802.15.4's 0..255 is open |

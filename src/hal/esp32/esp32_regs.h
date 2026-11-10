@@ -87,6 +87,49 @@
 #define ESP32_USJ_INT_IN_EMPTY (1u << 3)
 #define ESP32_USJ_FRAM_NUM 0x024u /* [10:0] the last SOF frame number: moves while a host is attached */
 
+/* ---- The 802.15.4 MAC (ESP-IDF ieee802154_reg.h; the TRM has no chapter). The H2 adds two debug
+ * registers above 0x180; nothing below them moves ---- */
+#define ESP32_MAC_COMMAND 0x000u
+#define ESP32_MAC_CMD_TX_START 0x41u
+#define ESP32_MAC_CMD_RX_START 0x42u
+#define ESP32_MAC_CMD_CCA_TX_START 0x43u
+#define ESP32_MAC_CMD_ED_START 0x44u
+#define ESP32_MAC_CMD_STOP 0x45u
+#define ESP32_MAC_CTRL_CFG 0x004u
+#define ESP32_MAC_CTRL_AUTO_ACK_TX (1u << 0)
+#define ESP32_MAC_CTRL_AUTO_ACK_RX (1u << 3)
+#define ESP32_MAC_CTRL_PAN_COORDINATOR (1u << 6)
+#define ESP32_MAC_CTRL_PROMISCUOUS (1u << 7)
+#define ESP32_MAC_CHANNEL 0x048u /* HOP [6:0]: MHz above 2402, 3 + 5 (channel - 11) */
+#define ESP32_MAC_CHANNEL_HOP_MASK 0x7Fu
+#define ESP32_MAC_EVENT_EN 0x060u
+#define ESP32_MAC_EVENT_STATUS 0x064u /* write 1 to clear */
+#define ESP32_MAC_EVENT_TX_DONE (1u << 0)
+#define ESP32_MAC_EVENT_RX_DONE (1u << 1)
+#define ESP32_MAC_EVENT_ACK_TX_DONE (1u << 2)
+#define ESP32_MAC_EVENT_ACK_RX_DONE (1u << 3)
+#define ESP32_MAC_EVENT_RX_ABORT (1u << 4)
+#define ESP32_MAC_EVENT_TX_ABORT (1u << 5)
+#define ESP32_MAC_EVENT_ED_DONE (1u << 6)
+#define ESP32_MAC_EVENT_ALL 0x1FFFu
+#define ESP32_MAC_RX_ABORT_EN 0x068u /* bit (reason - 1): which receive aborts raise RX_ABORT */
+#define ESP32_MAC_RX_ABORT_COEX_BREAK 7u
+#define ESP32_MAC_RX_ABORT_TX_ACK_TIMEOUT 16u
+#define ESP32_MAC_RX_ABORT_TX_ACK_COEX_BREAK 18u
+#define ESP32_MAC_COEX_PTI 0x070u
+#define ESP32_MAC_COEX_PTI_SHIFT 0u
+#define ESP32_MAC_COEX_ACK_PTI_SHIFT 4u
+#define ESP32_MAC_RX_STATUS 0x080u /* FILTER_FAIL [3:0], RX_ABORT_STATUS [8:4], RX_STATE [18:16] */
+#define ESP32_MAC_TXRX_STATUS 0x088u
+#define ESP32_MAC_RX_LENGTH 0x0A4u
+#define ESP32_MAC_RXDMA_ADDR 0x0E0u
+#define ESP32_MAC_RXON_DELAY 0x110u
+#define ESP32_MAC_SFD_TIMEOUT_CNT 0x144u
+#define ESP32_MAC_CRC_ERROR_CNT 0x148u
+#define ESP32_MAC_RX_FILTER_FAIL_CNT 0x154u
+#define ESP32_MAC_NO_RSS_DETECT_CNT 0x158u
+#define ESP32_MAC_RX_ABORT_COEX_CNT 0x15Cu
+
 /* ---- GPIO and IO_MUX (TRM ch. 7): a pin as a plain software-driven output ---- */
 #define ESP32_GPIO_OUT 0x004u
 #define ESP32_GPIO_OUT_W1TS 0x008u

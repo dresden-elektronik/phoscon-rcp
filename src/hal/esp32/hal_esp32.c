@@ -17,6 +17,9 @@ flasher trap's request lands here as an ordinary reset (docs/build-and-flash.md 
 #ifdef DS_ESP32_PHY_PROBE
 #include "esp32_phy.h"
 #endif
+#ifdef DS_ESP32_RADIO_PROBE
+#include "esp32_mac.h"
+#endif
 #include "esp32_panic.h"
 #include "esp32_regs.h"
 #include "esp32_wdt.h"
@@ -69,9 +72,20 @@ void HAL_PreMain(void)
  * handed over - are emitted here, once the loop holds the boot set for replay: a host on this USB link is
  * rarely attached at the moment of a reset, and a record emitted before the hold is gone by the time it
  * opens the port. */
+/* Let DMA masters reach memory: the access filters the bootloader leaves on refuse every master but the
+ * HP CPU (esp32_chip.h). This image runs no trusted execution environment to enable them for. */
+static void halOpenAccessFilters(void)
+{
+    ESP32_REG(ESP32_HP_APM_BASE, ESP32_APM_FUNC_CTRL) &= ~ESP32_HP_APM_PATHS;
+    ESP32_REG(ESP32_LP_APM0_BASE, ESP32_APM_FUNC_CTRL) &= ~ESP32_LP_APM0_PATHS;
+    ESP32_REG(ESP32_LP_APM_BASE, ESP32_APM_FUNC_CTRL) &= ~ESP32_LP_APM_PATHS;
+    HAL_Dsb();
+}
+
 int HAL_Init(void)
 {
     Panic_ReportPrevious();
+    halOpenAccessFilters();
     Debug_Emit(DBG_COMP_WITNESS,
                (uint16_t)(ESP32_REG(ESP32_LP_CLKRST_BASE, ESP32_LP_CLKRST_RESET_CAUSE) & 0x1Fu),
                DBG_WITNESS_RSN_ESP32_RESET_CAUSE);
@@ -99,6 +113,12 @@ int HAL_Init(void)
     /* With the millisecond running: the calibration takes tens of milliseconds, and its duration is one
      * of the records. */
     (void)Esp32Phy_Init();
+#endif
+#ifdef DS_ESP32_RADIO_PROBE
+    HAL_IrqLock();
+    (void)Esp32Mac_Init();
+    HAL_IrqUnlock();
+    (void)Esp32Mac_RxStart(DS_ESP32_RX_CHANNEL);
 #endif
 
     return 1;

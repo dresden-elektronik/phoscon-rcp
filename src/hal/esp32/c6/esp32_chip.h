@@ -19,6 +19,7 @@
  * controller as INTPRI, at 0x600C5000, with another register order; the code that runs is ESP-IDF's,
  * so this tree follows it (docs/hardware_esp32.md §12.3). */
 #define ESP32_PLIC_BASE 0x20001000u
+#define ESP32_MAC_BASE 0x600A3000u /* the 802.15.4 MAC */
 #define ESP32_TIMG0_BASE 0x60008000u
 #define ESP32_SYSTIMER_BASE 0x6000A000u
 #define ESP32_USJ_BASE 0x6000F000u
@@ -26,6 +27,9 @@
 #define ESP32_IO_MUX_BASE 0x60090000u
 #define ESP32_GPIO_BASE 0x60091000u
 #define ESP32_PCR_BASE 0x60096000u
+#define ESP32_HP_APM_BASE 0x60099000u
+#define ESP32_LP_APM0_BASE 0x60099800u
+#define ESP32_LP_APM_BASE 0x600B3800u
 #define ESP32_LP_CLKRST_BASE 0x600B0400u
 #define ESP32_EFUSE_BASE 0x600B0800u
 #define ESP32_LP_AON_BASE 0x600B1000u
@@ -49,11 +53,23 @@
 #define ESP32_LP_AON_SYS_CFG 0x034u
 #define ESP32_LP_AON_HPSYS_SW_RESET (1u << 31)
 
+/* ---- Access permission management (TRM ch. 16): each controller's FUNC_CTRL enables a filter per
+ * access path, and at reset every filter admits only masters in TEE mode - the HP CPU alone, so a DMA
+ * master such as the 802.15.4 MAC's is refused. ESP-IDF's app start clears them (bootloader_mem.c); its
+ * bootloader does not. Paths: HP_APM M0..M3, LP_APM0 M0, LP_APM M0..M1 (ESP-IDF apm_ll.h). ---- */
+#define ESP32_APM_FUNC_CTRL 0x0C4u
+#define ESP32_HP_APM_PATHS 0xFu
+#define ESP32_LP_APM0_PATHS 0x1u
+#define ESP32_LP_APM_PATHS 0x3u
+
 /* ---- Modem clock gates (ESP-IDF modem_clock.c): what the PHY and the 802.15.4 MAC need running ---- */
 #define ESP32_MODEM_SYSCON_CLK_CONF 0x004u
 #define ESP32_MODEM_SYSCON_CLK_ETM_EN (1u << 22)
 #define ESP32_MODEM_SYSCON_CLK_ZB_APB_EN (1u << 23)
 #define ESP32_MODEM_SYSCON_CLK_ZB_MAC_EN (1u << 24)
+/* The modem security block's clocks and the BLE timer, which the shared baseband runs with: ECB 25, CCM 26,
+ * BAH 27, APB 28, SEC 29, BLE_TIMER 30. */
+#define ESP32_MODEM_SYSCON_CLK_SEC_AND_BLE_TIMER (0x3Fu << 25)
 #define ESP32_MODEM_SYSCON_CLK_CONF1 0x014u
 #define ESP32_MODEM_SYSCON_CLK_FE_80M_EN (1u << 13)
 #define ESP32_MODEM_SYSCON_CLK_FE_160M_EN (1u << 14)
@@ -61,6 +77,21 @@
 #define ESP32_MODEM_SYSCON_CLK_FE_APB_EN (1u << 16)
 #define ESP32_MODEM_SYSCON_CLK_BT_APB_EN (1u << 17)
 #define ESP32_MODEM_SYSCON_CLK_BT_EN (1u << 18)
+/* The clock domains' ICG maps: per domain a 4-bit set of the PMU states it runs in, SLEEP 0, MODEM 1,
+ * ACTIVE 2. The bootloader opens only MODEM_APB, I2C_MST and LP_APB; the rest stay gated in the active state
+ * whatever their clock enables say, until an app opens them, as ESP-IDF's modem_clock.c does the first time
+ * a radio comes up. These are its initial maps: ZB 8, FE 12, BT 16, WIFI 20, MODEM_PERI 24, MODEM_APB 28 in
+ * MODEM_SYSCON; WIFIPWR 16, COEX 20, I2C_MST 24, LP_APB 28 in MODEM_LPCON. */
+#define ESP32_MODEM_SYSCON_CLK_CONF_POWER_ST 0x00Cu
+#define ESP32_MODEM_SYSCON_ICG_RUN ((4u << 8) | (6u << 12) | (4u << 16) | (6u << 20) | (4u << 24) | (6u << 28))
+#define ESP32_MODEM_LPCON_CLK_CONF_POWER_ST 0x020u
+#define ESP32_MODEM_LPCON_ICG_RUN ((6u << 16) | (6u << 20) | (6u << 24) | (6u << 28))
+#define ESP32_MODEM_SYSCON_MODEM_RST_CONF 0x010u
+#define ESP32_MODEM_SYSCON_RST_ZBMAC (1u << 24)
+/* The modem blocks a radio's bring-up resets together: Wi-Fi baseband 8 and MAC 10, the RF front end 14,
+ * the BT MAC's APB 15 and core 16, the BT/802.15.4 baseband's APB 17 and core 18, and the 802.15.4 MAC 24.
+ * A software reset does not power the modem domain down (esp-rs's esp-radio pulses the same set). */
+#define ESP32_MODEM_SYSCON_RST_RADIO ((1u << 8) | (1u << 10) | (0x1Fu << 14) | (1u << 24))
 #define ESP32_MODEM_LPCON_CLK_CONF 0x018u
 #define ESP32_MODEM_LPCON_CLK_COEX_EN (1u << 1)
 #define ESP32_MODEM_LPCON_CLK_I2C_MST_EN (1u << 2)
@@ -88,6 +119,9 @@
  * root's own divider is fixed at 3 on the PLL path, and the CPU takes 1, 2 or 4 of it). AHB keeps its own
  * divider from the same root, 40 MHz as the bootloader leaves it. */
 #define ESP32_CPU_HZ_MAX 160000000u
+/* The PHY serves Wi-Fi, Bluetooth LE and 802.15.4 (ESP-IDF SOC_PHY_COMBO_MODULE): phy_init_param_set's
+ * argument. */
+#define ESP32_PHY_COMBO_MODULE 1u
 #define ESP32_PCR_CPU_HS_DIV_MAX_SPEED 0u
 #define ESP32_PCR_AHB_FREQ_CONF 0x11Cu
 /* The HP SRAM, and the end of what an app may use: above it sit the bootloader's own loader segment

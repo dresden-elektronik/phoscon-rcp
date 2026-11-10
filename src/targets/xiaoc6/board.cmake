@@ -93,6 +93,15 @@ endif()
 # The radio's PHY on Espressif's libraries (hal/esp32/phy/phy.cmake). Until the radio driver lands, a probe
 # image built with -DDS_ESP32_PHY_PROBE=ON brings the PHY up at boot and reports how it went.
 option(DS_ESP32_PHY_PROBE "xiaoc6: bring the radio's PHY up in the probe image" OFF)
+# -DDS_ESP32_RADIO_PROBE=ON adds the MAC: promiscuous receive on DS_ESP32_RX_CHANNEL, every frame a group of
+# records, the MAC's counters with the heartbeat.
+option(DS_ESP32_RADIO_PROBE "xiaoc6: receive in the probe image and report every frame" OFF)
+set(DS_ESP32_RX_CHANNEL "15" CACHE STRING "xiaoc6: the channel the radio probe receives on, 11..26")
+if(DS_ESP32_RADIO_PROBE)
+  set(DS_ESP32_PHY_PROBE ON)
+  list(APPEND DS_HAL_SOURCES ${DS_SRC_DIR}/hal/esp32/esp32_mac.c)
+  list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_RADIO_PROBE=1 -DDS_ESP32_RX_CHANNEL=${DS_ESP32_RX_CHANNEL}u)
+endif()
 if(DS_ESP32_PHY_PROBE)
   include(${DS_SRC_DIR}/hal/esp32/phy/phy.cmake)
   list(APPEND DS_HAL_SOURCES ${DS_ESP32_PHY_SOURCES})
