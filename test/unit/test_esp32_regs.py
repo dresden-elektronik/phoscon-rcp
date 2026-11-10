@@ -36,6 +36,8 @@ NOT_COMPARED = {
     "ESP32_XTAL_HZ": "TRM 13.3 and esptool's crystal read on the bench board",
     "ESP32_SYSTIMER_TICKS_PER_US": "TRM 13.3: XTAL_CLK / 2.5 = 16 MHz",
     "ESP32_PLIC_THRESH_ENABLED": "this tree's choice of threshold (TRM 1.6.3.2)",
+    "ESP32_CPU_HZ_MAX": "the datasheet's 160 MHz, read back on the bench board",
+    "ESP32_PCR_CPU_HS_DIV_MAX_SPEED": "ESP-IDF clk_tree_ll.h's divider rule: CPU_HS_DIV_NUM = divider / 3 - 1",
 }
 
 # ours -> an expression over ESP-IDF's names (evaluated with REG_TIMG_BASE(i) at i = 0).
@@ -117,6 +119,35 @@ COMPARE = {
     "ESP32_USJ_INT_OUT_RECV_PKT": "USB_SERIAL_JTAG_SERIAL_OUT_RECV_PKT_INT_ENA",
     "ESP32_USJ_INT_IN_EMPTY": "USB_SERIAL_JTAG_SERIAL_IN_EMPTY_INT_ENA",
     "ESP32_USJ_FRAM_NUM": "USB_SERIAL_JTAG_FRAM_NUM_REG - DR_REG_USB_SERIAL_JTAG_BASE",
+    "ESP32_IO_MUX_BASE": "DR_REG_IO_MUX_BASE",
+    "ESP32_GPIO_BASE": "DR_REG_GPIO_BASE",
+    "ESP32_PCR_BASE": "DR_REG_PCR_BASE",
+    "ESP32_GPIO_PINS": "SOC_GPIO_PIN_COUNT",
+    "ESP32_IO_MUX_GPIO0": "IO_MUX_GPIO0_REG - DR_REG_IO_MUX_BASE",
+    "ESP32_PLL_HZ": "CLK_LL_PLL_480M_FREQ_MHZ * 1000000",
+    "ESP32_PCR_SYSCLK_CONF": "PCR_SYSCLK_CONF_REG - DR_REG_PCR_BASE",
+    "ESP32_PCR_SYSCLK_LS_DIV_SHIFT": "PCR_LS_DIV_NUM_S",
+    "ESP32_PCR_SYSCLK_HS_DIV_SHIFT": "PCR_HS_DIV_NUM_S",
+    "ESP32_PCR_SYSCLK_SOC_CLK_SEL_SHIFT": "PCR_SOC_CLK_SEL_S",
+    "ESP32_PCR_SYSCLK_SOC_CLK_PLL": "SOC_CPU_CLK_SRC_PLL",
+    "ESP32_PCR_CPU_FREQ_CONF": "PCR_CPU_FREQ_CONF_REG - DR_REG_PCR_BASE",
+    "ESP32_PCR_CPU_LS_DIV_SHIFT": "PCR_CPU_LS_DIV_NUM_S",
+    "ESP32_PCR_CPU_HS_DIV_SHIFT": "PCR_CPU_HS_DIV_NUM_S",
+    "ESP32_PCR_CPU_HS_120M_FORCE": "PCR_CPU_HS_120M_FORCE",
+    "ESP32_PCR_CPU_HS_DIV_MASK": "PCR_CPU_HS_DIV_NUM_M",
+    "ESP32_PCR_AHB_FREQ_CONF": "PCR_AHB_FREQ_CONF_REG - DR_REG_PCR_BASE",
+    "ESP32_GPIO_OUT": "GPIO_OUT_REG - DR_REG_GPIO_BASE",
+    "ESP32_GPIO_OUT_W1TS": "GPIO_OUT_W1TS_REG - DR_REG_GPIO_BASE",
+    "ESP32_GPIO_OUT_W1TC": "GPIO_OUT_W1TC_REG - DR_REG_GPIO_BASE",
+    "ESP32_GPIO_ENABLE": "GPIO_ENABLE_REG - DR_REG_GPIO_BASE",
+    "ESP32_GPIO_ENABLE_W1TS": "GPIO_ENABLE_W1TS_REG - DR_REG_GPIO_BASE",
+    "ESP32_GPIO_ENABLE_W1TC": "GPIO_ENABLE_W1TC_REG - DR_REG_GPIO_BASE",
+    "ESP32_GPIO_FUNC0_OUT_SEL_CFG": "GPIO_FUNC0_OUT_SEL_CFG_REG - DR_REG_GPIO_BASE",
+    "ESP32_GPIO_SIG_GPIO_OUT": "SIG_GPIO_OUT_IDX",
+    "ESP32_IO_MUX_MCU_SEL_SHIFT": "MCU_SEL_S",
+    "ESP32_IO_MUX_MCU_SEL_MASK": "MCU_SEL_V << MCU_SEL_S",
+    "ESP32_IO_MUX_FUNC_GPIO": "PIN_FUNC_GPIO",
+    "ESP32_IO_MUX_FUN_IE": "1 << FUN_IE_S",
     "ESP32_PLIC_ENABLE": "PLIC_MXINT_ENABLE_REG - DR_REG_PLIC_MX_BASE",
     "ESP32_PLIC_TYPE": "PLIC_MXINT_TYPE_REG - DR_REG_PLIC_MX_BASE",
     "ESP32_PLIC_CLEAR": "PLIC_MXINT_CLEAR_REG - DR_REG_PLIC_MX_BASE",
@@ -195,7 +226,11 @@ def main():
     # header may define after it. The watchdog key is in the LP watchdog's low-level driver.
     idf_paths = [os.path.join(soc, "include", "soc", "soc.h"),
                  os.path.join(root, "components", "hal", "include", "hal", "wdt_types.h"),
-                 os.path.join(root, "components", "hal", CHIP, "include", "hal", "lpwdt_ll.h")]
+                 os.path.join(root, "components", "hal", CHIP, "include", "hal", "lpwdt_ll.h"),
+                 os.path.join(root, "components", "hal", CHIP, "include", "hal", "clk_tree_ll.h"),
+                 os.path.join(soc, "include", "soc", "soc_caps.h"),
+                 os.path.join(soc, "include", "soc", "clk_tree_defs.h"),
+                 os.path.join(soc, "include", "soc", "gpio_sig_map.h")]
     idf_paths += [os.path.join(soc, "register", "soc", f) for f in sorted(os.listdir(os.path.join(soc, "register", "soc")))
                   if f.endswith("_reg.h") or f == "reg_base.h"]
     idf, idf_fn = collect(idf_paths)

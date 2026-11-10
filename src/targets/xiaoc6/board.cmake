@@ -30,6 +30,7 @@ set(DS_STARTUP "${DS_SRC_DIR}/startup/startup_esp32.S")
 #   esp32_panic.c    Panic_Enter, the exception path, and the mark a reset leaves in RAM
 #   esp32_nvram.c    the identity: the eFuse MAC, its words read by esp32_ident.c
 #   esp32_app_desc.c the descriptor the bootloader reads first
+#   esp32_gpio.c     plain outputs, and the board's pins from esp32_board.h in this directory
 # and the portable core this silicon's glue calls, compiled here as well as in its host suite:
 #   esp32_ident.c    the factory EUI-64 out of the eFuse MAC words
 set(DS_HAL_SOURCES
@@ -40,6 +41,7 @@ set(DS_HAL_SOURCES
   ${DS_SRC_DIR}/hal/esp32/esp32_panic.c
   ${DS_SRC_DIR}/hal/esp32/esp32_nvram.c
   ${DS_SRC_DIR}/hal/esp32/esp32_app_desc.c
+  ${DS_SRC_DIR}/hal/esp32/esp32_gpio.c
   ${DS_SRC_DIR}/hal/esp32/esp32_ident.c
 )
 # The chip's directory before the family's: esp32_chip.h is found there.
@@ -80,3 +82,9 @@ set(DS_IMAGE_COMMAND ${DS_ESPTOOL} --chip esp32c6 elf2image --flash-mode dio --f
 
 # Rf_WakeAndForceClkm, Nvram_SerialAscii, Nvram_Uid and Nvram_ClearUpdateFlag have no counterpart here and
 # are not faked: an image that reaches for one fails at the link (docs/boards.md §4).
+
+# The antenna the RF switch selects: the ceramic one on the board, or the U.FL socket (esp32_board.h).
+option(DS_ESP32_ANTENNA_UFL "xiaoc6: use the U.FL antenna socket instead of the ceramic antenna" OFF)
+if(DS_ESP32_ANTENNA_UFL)
+  list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_ANTENNA_UFL=1)
+endif()

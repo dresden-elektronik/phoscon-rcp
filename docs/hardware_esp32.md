@@ -31,7 +31,7 @@ One directory, `src/hal/esp32/`, drives the blocks these parts share; one direct
 |---|---|
 | core | RV32IMAC, up to 160 MHz, single HP core plus an LP core; machine mode only here |
 | memory | 512 KiB HP SRAM at `0x40800000`, instruction and data alike; flash mapped through a 64 KiB-page MMU into one window from `0x42000000` shared by both buses |
-| crystal | 40 MHz; SYSTIMER counts at 16 MHz from it whatever the CPU runs at |
+| clocks | 40 MHz crystal; SYSTIMER counts at 16 MHz from it whatever the CPU runs at. The HP root is the 480 MHz PLL divided by 3, 160 MHz; the CPU divides it by 1, 2 or 4, AHB by its own divider |
 | identity | the factory MAC in eFuse block 1: the low 32 bits at `EFUSE + 0x44`, the high 16 and `MAC_EXT` at `+0x48`. The EUI-64 is MAC[47:24], then `MAC_EXT` low byte first, then MAC[23:0], as ESP-IDF composes it for 802.15.4 |
 
 The bench XIAO's part reads as ESP32-C6FH4 revision v0.2 with 4 MB of embedded flash. Its `MAC_EXT` reads `FF FE`, the usual value, because the eFuse holds it: no constant is inserted, and the host suite pins a vector where it is not.
@@ -54,6 +54,7 @@ The bootloader loads the RAM segments, maps the flash ones with the cache on, an
 - **Traps are vectored only.** `mtvec` is 256-byte aligned; an exception enters at its base and CPU line n at base + 4n (TRM 1.6.2). A peripheral source reaches a line through the interrupt matrix (map register at `INTMTX + 4 × source`), and the PLIC enables, types and prioritises the line. ESP-IDF drives that PLIC at `0x20001000`; the TRM describes the same controller as INTPRI at `0x600C5000` with another register order. The bench board's interrupts run through `0x20001000`.
 - **Every line is level-type and nothing nests.** The core clears MIE on entry; the dispatcher calls the line's handler, which clears its own source. Code an interrupt runs is placed in `.iram.text`, so a cache miss never lands in it.
 - **Watchdogs.** The ROM arms the RTC watchdog and MWDT0 for the flash boot; the bootloader ends both, and ESP-IDF's default configuration re-arms the RTC watchdog for the app. The bench XIAO's bootloader leaves it off. The image switches it off either way, and records it when it was on, and arms MWDT0: a system reset 2 s after the last feed, counted from the crystal. The super watchdog stays fed by hardware, as the bootloader left it.
+- **The CPU clock.** The bench XIAO's bootloader leaves the root on the PLL, the CPU at 80 MHz (its divider 2) and AHB at 40 MHz. The image sets the CPU's divider to 1, 160 MHz, and touches nothing else: the PLL already runs, and the timer, the watchdog and the link do not count in CPU cycles. The witnesses report the registers and the frequency they make.
 - **Reset** is the HP system's software reset (`LP_AON_SYS_CFG`, bit 31): the ROM and the bootloader run again. The flasher trap's reset frame lands there too. The reset cause reads 3 after it, 21 after esptool's line-state reset. It, the panic mark and the handed-over `mstatus` are reported from `HAL_Init`, inside the boot set the loop replays, because a host on this link is rarely attached when the board resets.
 
 ### 12.4 The XIAO ESP32-C6
@@ -62,9 +63,11 @@ The bootloader loads the RAM segments, maps the flash ones with the cache on, an
 |---|---|
 | host link | the chip's USB Serial/JTAG controller on the USB-C socket: CDC-ACM, VID `0x303A`, PID `0x1001`, the chip's MAC as its serial number; it enumerates in hardware |
 | flash layout | bootloader `0x0`, partition table `0x8000`, `nvs` `0x9000`, `otadata` `0xE000`, the app slot `ota_0` `0x10000`, 2 MiB, then `spiffs` and `coredump`; one app slot, no factory slot |
-| RF switch | GPIO3 low enables it; GPIO14 low selects the ceramic antenna, high the U.FL socket |
-| user LED, BOOT | GPIO15; GPIO9, held while plugging in for the ROM's download mode |
+| RF switch | GPIO3 low enables it; GPIO14 low selects the ceramic antenna, high the U.FL socket. The image drives both at boot, the ceramic antenna unless built with `-DDS_ESP32_ANTENNA_UFL=ON` |
+| user LED, BOOT | GPIO15, which the probe image toggles with every 2 s heartbeat of the loop; GPIO9, held while plugging in for the ROM's download mode |
 | UART0 | TX GPIO16, RX GPIO17, on the edge pins |
+
+The pins are the board's data, in `targets/xiaoc6/esp32_board.h`; `hal/esp32/esp32_gpio.c` drives them.
 
 The USB link resets the chip on its CDC line state (TRM Table 32.3-2):
 
@@ -92,4 +95,3 @@ Two audits of `docs/testing.md` §5 do not run as written on this board:
 |---|---|
 | the MAC's registers | ESP-IDF's `soc/esp32c6/register/soc/ieee802154_reg.h` and `components/ieee802154/driver`, Apache-2.0: read, never copied |
 | RF bring-up and calibration | `esp-phy-lib`'s `esp32c6/libphy.a` and `libbtbb.a`, Apache-2.0. They reach 99 outside symbols, 93 of them mask-ROM routines named in ESP-IDF's `esp_rom/esp32c6/ld`, and 6 the host supplies: `memcpy`, `memset`, `sprintf`, `phy_printf`, `rtc_clk_xtal_freq_get`, `rfpll_cap_track`. Neither reaches a coexistence or Wi-Fi library |
-| the 160 MHz CPU clock | the BBPLL, set through an analog I2C bus the TRM does not document; the probe image runs on the clock the bootloader left |

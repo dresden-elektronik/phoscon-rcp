@@ -87,6 +87,21 @@
 #define ESP32_USJ_INT_IN_EMPTY (1u << 3)
 #define ESP32_USJ_FRAM_NUM 0x024u /* [10:0] the last SOF frame number: moves while a host is attached */
 
+/* ---- GPIO and IO_MUX (TRM ch. 7): a pin as a plain software-driven output ---- */
+#define ESP32_GPIO_OUT 0x004u
+#define ESP32_GPIO_OUT_W1TS 0x008u
+#define ESP32_GPIO_OUT_W1TC 0x00Cu
+#define ESP32_GPIO_ENABLE 0x020u
+#define ESP32_GPIO_ENABLE_W1TS 0x024u
+#define ESP32_GPIO_ENABLE_W1TC 0x028u
+#define ESP32_GPIO_FUNC0_OUT_SEL_CFG 0x554u /* pin n at + 4n */
+/* The output-matrix signal that hands a pin to GPIO_OUT, rather than to a peripheral. */
+#define ESP32_GPIO_SIG_GPIO_OUT 128u
+#define ESP32_IO_MUX_MCU_SEL_SHIFT 12u
+#define ESP32_IO_MUX_MCU_SEL_MASK (7u << 12)
+#define ESP32_IO_MUX_FUNC_GPIO 1u
+#define ESP32_IO_MUX_FUN_IE (1u << 9)
+
 /* ---- The CPU interrupt controller of the C6 and H2 (ESP-IDF's PLIC_MX). The C5's is a CLIC ---- */
 #define ESP32_PLIC_ENABLE 0x000u
 #define ESP32_PLIC_TYPE 0x004u /* 1 = edge */

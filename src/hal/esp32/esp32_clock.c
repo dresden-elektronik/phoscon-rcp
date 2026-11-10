@@ -128,8 +128,67 @@ uint32_t Tick_CyclesSince(uint32_t stamp)
     return Tick_CycleStamp() - stamp;
 }
 
+/* The HP root clock is the crystal, divided by LS_DIV_NUM + 1, or the 480 MHz PLL, divided by HS_DIV_NUM
+ * + 1; the CPU divides the root once more, and a forced 120 MHz overrides an undivided PLL path (TRM
+ * ch. 8; ESP-IDF clk_tree_ll.h reads the same fields). */
+uint32_t Esp32Clock_CpuHz(void)
+{
+    uint32_t sysclk = ESP32_REG(ESP32_PCR_BASE, ESP32_PCR_SYSCLK_CONF);
+    uint32_t cpu = ESP32_REG(ESP32_PCR_BASE, ESP32_PCR_CPU_FREQ_CONF);
+    uint32_t sel = (sysclk >> ESP32_PCR_SYSCLK_SOC_CLK_SEL_SHIFT) & 3u;
+    uint32_t rootDiv;
+    uint32_t cpuDiv;
+
+    if (sel == 0u)
+    {
+        rootDiv = ((sysclk >> ESP32_PCR_SYSCLK_LS_DIV_SHIFT) & 0xFFu) + 1u;
+        cpuDiv = ((cpu >> ESP32_PCR_CPU_LS_DIV_SHIFT) & 0xFFu) + 1u;
+        return ESP32_XTAL_HZ / rootDiv / cpuDiv;
+    }
+
+    if (sel != ESP32_PCR_SYSCLK_SOC_CLK_PLL)
+        return 0u;
+
+    cpuDiv = ((cpu >> ESP32_PCR_CPU_HS_DIV_SHIFT) & 0xFFu) + 1u;
+
+    if (cpuDiv == 1u && (cpu & ESP32_PCR_CPU_HS_120M_FORCE) != 0u)
+        return ESP32_PLL_HZ / 4u;
+
+    rootDiv = ((sysclk >> ESP32_PCR_SYSCLK_HS_DIV_SHIFT) & 0xFFu) + 1u;
+    return ESP32_PLL_HZ / rootDiv / cpuDiv;
+}
+
+/* The bootloader leaves the PLL running and the CPU on it divided (80 MHz on the bench XIAO), so the
+ * switch is the CPU's own divider alone; the timer, the watchdog and the link do not count in CPU cycles,
+ * so nothing else changes with it. */
+int Esp32Clock_CpuToMax(void)
+{
+    uint32_t sysclk = ESP32_REG(ESP32_PCR_BASE, ESP32_PCR_SYSCLK_CONF);
+    uint32_t cpu;
+
+    if (((sysclk >> ESP32_PCR_SYSCLK_SOC_CLK_SEL_SHIFT) & 3u) != ESP32_PCR_SYSCLK_SOC_CLK_PLL)
+        return 0;
+
+    cpu = ESP32_REG(ESP32_PCR_BASE, ESP32_PCR_CPU_FREQ_CONF);
+    cpu &= ~(ESP32_PCR_CPU_HS_DIV_MASK | ESP32_PCR_CPU_HS_120M_FORCE);
+    cpu |= ESP32_PCR_CPU_HS_DIV_MAX_SPEED << ESP32_PCR_CPU_HS_DIV_SHIFT;
+    ESP32_REG(ESP32_PCR_BASE, ESP32_PCR_CPU_FREQ_CONF) = cpu;
+    HAL_Dsb();
+
+    return Esp32Clock_CpuHz() == ESP32_CPU_HZ_MAX;
+}
+
 void Clock_WitnessReport(void)
 {
+    uint32_t sysclk = ESP32_REG(ESP32_PCR_BASE, ESP32_PCR_SYSCLK_CONF);
+
+    Debug_Emit(DBG_COMP_WITNESS, (uint16_t)sysclk, DBG_WITNESS_RSN_ESP32_SYSCLK);
+    Debug_Emit(DBG_COMP_WITNESS, (uint16_t)(sysclk >> 16), DBG_WITNESS_RSN_ESP32_SYSCLK_HI);
+    Debug_Emit(DBG_COMP_WITNESS, (uint16_t)ESP32_REG(ESP32_PCR_BASE, ESP32_PCR_CPU_FREQ_CONF),
+               DBG_WITNESS_RSN_ESP32_CPU_FREQ);
+    Debug_Emit(DBG_COMP_WITNESS, (uint16_t)ESP32_REG(ESP32_PCR_BASE, ESP32_PCR_AHB_FREQ_CONF),
+               DBG_WITNESS_RSN_ESP32_AHB_FREQ);
+    Debug_Emit(DBG_COMP_WITNESS, (uint16_t)(Esp32Clock_CpuHz() / 1000000u), DBG_WITNESS_RSN_ESP32_CPU_MHZ);
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)(SYSTIMER(ESP32_SYSTIMER_CONF) >> 16),
                DBG_WITNESS_RSN_ESP32_SYSTIMER_CONF);
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)ESP32_LINE_TICK, DBG_WITNESS_RSN_ESP32_TICK_LINE);

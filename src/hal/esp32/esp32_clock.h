@@ -16,4 +16,12 @@ void Clock_TickCountedByIrq(int on);
 /* The bring-up read-backs as witness records. */
 void Clock_WitnessReport(void);
 
+/* The CPU clock the PCR's selection and dividers make, in Hz; 0 for a selection this layer does not
+ * know. */
+uint32_t Esp32Clock_CpuHz(void);
+
+/* Run the CPU at the chip's fastest clock when the bootloader left the root on the PLL; nothing on any
+ * other source. 1 = the CPU runs at ESP32_CPU_HZ_MAX. */
+int Esp32Clock_CpuToMax(void);
+
 #endif /* ESP32_CLOCK_H */

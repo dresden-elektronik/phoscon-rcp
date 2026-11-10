@@ -13,6 +13,7 @@ flasher trap's request lands here as an ordinary reset (docs/build-and-flash.md 
 #include "com.h"
 #include "dbg.h"
 #include "esp32_clock.h"
+#include "esp32_gpio.h"
 #include "esp32_panic.h"
 #include "esp32_regs.h"
 #include "esp32_wdt.h"
@@ -74,6 +75,8 @@ int HAL_Init(void)
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)esp32BootMstatus, DBG_WITNESS_RSN_ESP32_MSTATUS);
 
     (void)Wdt_Init();
+    Esp32Board_PinsInit();
+    (void)Esp32Clock_CpuToMax();
 
     if (!Clock_Init())
     {

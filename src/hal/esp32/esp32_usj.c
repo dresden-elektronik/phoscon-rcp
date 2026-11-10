@@ -20,6 +20,7 @@ esptool reaches the ROM's download mode with this image running; this file leave
 
 #include "com.h"
 #include "dbg.h"
+#include "esp32_gpio.h"
 #include "esp32_irq.h"
 #include "esp32_regs.h"
 #include "hal.h"
@@ -144,6 +145,8 @@ static void usjHeartbeat(void)
         return;
 
     usjNextBeatMs = ms + DS_LINK_HEARTBEAT_MS;
+    /* The board's LED changes with every beat: a loop that stops leaves it as it was. */
+    Esp32Board_Led((int)((ms / DS_LINK_HEARTBEAT_MS) & 1u));
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)(ms / 1000u), DBG_WITNESS_RSN_ESP32_HEARTBEAT);
     Debug_Emit(DBG_COMP_WITNESS, usjRxOctets, DBG_WITNESS_RSN_ESP32_USJ_RX_OCTETS);
     Debug_Emit(DBG_COMP_WITNESS, (uint16_t)USJ(ESP32_USJ_FRAM_NUM), DBG_WITNESS_RSN_ESP32_USJ_FRAME);

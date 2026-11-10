@@ -520,8 +520,16 @@ enum
     DBG_WITNESS_RSN_ESP32_FAULT_PC_HI,
     DBG_WITNESS_RSN_ESP32_HEARTBEAT,       /* seconds since boot (16-bit): a live report follows */
     DBG_WITNESS_RSN_ESP32_USJ_RX_OCTETS,   /* octets the host sent since boot (16-bit, wraps) */
-    DBG_WITNESS_RSN_ESP32_USJ_FRAME        /* the last USB start-of-frame number: it moves while a host is
+    DBG_WITNESS_RSN_ESP32_USJ_FRAME,       /* the last USB start-of-frame number: it moves while a host is
                                             * attached and stops when none is */
+    DBG_WITNESS_RSN_ESP32_SYSCLK,          /* PCR SYSCLK_CONF low half: LS_DIV_NUM [7:0], HS_DIV_NUM [15:8] */
+    DBG_WITNESS_RSN_ESP32_SYSCLK_HI,       /* its high half: SOC_CLK_SEL [1:0] (0 XTAL, 1 PLL, 2 RC_FAST),
+                                            * CLK_XTAL_FREQ [14:8] in MHz */
+    DBG_WITNESS_RSN_ESP32_CPU_FREQ,        /* PCR CPU_FREQ_CONF: CPU_LS_DIV_NUM [7:0], CPU_HS_DIV_NUM [15:8] */
+    DBG_WITNESS_RSN_ESP32_AHB_FREQ,        /* PCR AHB_FREQ_CONF: AHB_LS_DIV_NUM [7:0], AHB_HS_DIV_NUM [15:8] */
+    DBG_WITNESS_RSN_ESP32_CPU_MHZ,         /* the CPU clock those registers make, in MHz */
+    DBG_WITNESS_RSN_ESP32_GPIO_OUT,        /* GPIO OUT [15:0] after the board's pins were set */
+    DBG_WITNESS_RSN_ESP32_GPIO_ENABLE      /* GPIO ENABLE [15:0]: the pins driven as outputs */
 };
 
 /* Register monitor replies (DBG_COMP_MON, app/monitor_app.c, docs/hardware_mg21.md §10.5). One

@@ -23,6 +23,9 @@
 #define ESP32_SYSTIMER_BASE 0x6000A000u
 #define ESP32_USJ_BASE 0x6000F000u
 #define ESP32_INTMTX_BASE 0x60010000u
+#define ESP32_IO_MUX_BASE 0x60090000u
+#define ESP32_GPIO_BASE 0x60091000u
+#define ESP32_PCR_BASE 0x60096000u
 #define ESP32_LP_CLKRST_BASE 0x600B0400u
 #define ESP32_EFUSE_BASE 0x600B0800u
 #define ESP32_LP_AON_BASE 0x600B1000u
@@ -44,8 +47,31 @@
 #define ESP32_LP_AON_SYS_CFG 0x034u
 #define ESP32_LP_AON_HPSYS_SW_RESET (1u << 31)
 
+/* ---- GPIO: the pins this chip has, and where each one's IO_MUX register is ---- */
+#define ESP32_GPIO_PINS 31u
+#define ESP32_IO_MUX_GPIO0 0x004u /* GPIO n at ESP32_IO_MUX_GPIO0 + 4n */
+
 /* ---- Clocks and memory ---- */
 #define ESP32_XTAL_HZ 40000000u
+/* The PLL the HP root clock divides, fixed on this part (ESP-IDF clk_tree_ll.h). */
+#define ESP32_PLL_HZ 480000000u
+/* The clock registers of the PCR block (TRM ch. 8). */
+#define ESP32_PCR_SYSCLK_CONF 0x110u
+#define ESP32_PCR_SYSCLK_LS_DIV_SHIFT 0u
+#define ESP32_PCR_SYSCLK_HS_DIV_SHIFT 8u
+#define ESP32_PCR_SYSCLK_SOC_CLK_SEL_SHIFT 16u
+#define ESP32_PCR_SYSCLK_SOC_CLK_PLL 1u
+#define ESP32_PCR_CPU_FREQ_CONF 0x118u
+#define ESP32_PCR_CPU_LS_DIV_SHIFT 0u
+#define ESP32_PCR_CPU_HS_DIV_SHIFT 8u
+#define ESP32_PCR_CPU_HS_120M_FORCE (1u << 16)
+#define ESP32_PCR_CPU_HS_DIV_MASK (0xFFu << 8)
+/* The CPU's fastest clock: the 160 MHz HP root undivided, CPU_HS_DIV_NUM 0 (ESP-IDF clk_tree_ll.h: the
+ * root's own divider is fixed at 3 on the PLL path, and the CPU takes 1, 2 or 4 of it). AHB keeps its own
+ * divider from the same root, 40 MHz as the bootloader leaves it. */
+#define ESP32_CPU_HZ_MAX 160000000u
+#define ESP32_PCR_CPU_HS_DIV_MAX_SPEED 0u
+#define ESP32_PCR_AHB_FREQ_CONF 0x11Cu
 /* The HP SRAM, and the end of what an app may use: above it sit the bootloader's own loader segment
  * and the ROM's stack and data, which are live while the bootloader loads the app (ESP-IDF
  * bootloader.memory.ld.in, SRAM_DRAM_END). */
