@@ -3,7 +3,8 @@
 /* esp32_phy.c — the RF bring-up, around Espressif's libphy.a and libbtbb.a (esp32_phy.h).
 
 The sequence is the one ESP-IDF's esp_phy component runs before its 802.15.4 driver touches the MAC,
-written from its description, not from its code (docs/hardware_esp32.md §12.5):
+written from scratch after reading ESP-IDF v5.4.1's esp_phy and modem_clock sources (docs/hardware_esp32.md
+§12.5):
 
   1. the modem clocks: for the PHY the analog I2C master and the front end's common and private clocks,
      for the 802.15.4 MAC its APB and MAC clocks, the shared BT/802.15.4 baseband, the event matrix and

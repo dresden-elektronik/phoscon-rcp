@@ -91,7 +91,7 @@ Two audits of `docs/testing.md` §5 do not run as written on this board:
 
 ### 12.5 The radio's PHY
 
-The RF bring-up runs on the bench XIAO: a probe image built with `-DDS_ESP32_PHY_PROBE=ON` opens the modem clocks, brings the PHY up with a full calibration in 45 ms, then the baseband, and keeps running. The 802.15.4 MAC is not driven yet.
+The PHY's bring-up runs on the bench XIAO: a probe image built with `-DDS_ESP32_PHY_PROBE=ON` opens the modem clocks and calls the archive's entry point, which returns after a full calibration of 45 ms, then the baseband's, and the board keeps running. That the RF path works is not shown until the 802.15.4 MAC, not driven yet, receives a frame.
 
 | item | state |
 |---|---|
