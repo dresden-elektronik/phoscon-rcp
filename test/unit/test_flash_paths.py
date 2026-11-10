@@ -3,11 +3,12 @@
 # Copyright (c) 2026 dresden elektronik ingenieurtechnik gmbh
 """test_flash_paths.py - every tracked tool that flashes a board runs the pre-flash guard for that board.
 
-A flash path is a tool that runs GCFFlasher (`cb2flasher.resolve()`, a `--flasher` path) or uploads
-pages itself. Each must reach tools/gcf_check.py with the board named, through gcftool.guard(),
-gcftool.build_package_guard(), or a gcf_check call with `--board` (docs/build-and-flash.md §6): the
-guard's default board is cb2, and a path that leans on it checks another board's container against
-the wrong rules. Run by ctest as `flash_paths`.
+A flash path is a tool that runs GCFFlasher (`cb2flasher.resolve()`, a `--flasher` path), uploads
+pages itself, or runs esptool's write-flash. Each must reach its guard with the board named: a GCF path
+tools/gcf_check.py, through gcftool.guard(), gcftool.build_package_guard(), or a gcf_check call with
+`--board` (docs/build-and-flash.md §6), since the guard's default board is cb2 and a path that leans on
+it checks another board's container against the wrong rules; an esptool path tools/esp32_check.py's
+check() with the board (docs/build-and-flash.md §13). Run by ctest as `flash_paths`.
 """
 import glob
 import os
@@ -15,10 +16,10 @@ import re
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-FLASHES = (r"cb2flasher\.resolve\(", r"args\.flasher\b", r"\bdef upload\(")
+FLASHES = (r"cb2flasher\.resolve\(", r"args\.flasher\b", r"\bdef upload\(", r"\"write-flash\"")
 GUARDS = (r"gcftool\.guard\(\s*[^)]*,\s*\"(cb2|rb2|cb3|cbrb1)\"", r"gcftool\.build_package_guard\(",
-          r"gcf_check\.py[\s\S]*\"--board\"")
-NOT_PATHS = {"cb2flasher.py", "gcftool.py", "gcf_check.py"}
+          r"gcf_check\.py[\s\S]*\"--board\"", r"esp32_check\.check\(\s*data,\s*args\.board")
+NOT_PATHS = {"cb2flasher.py", "gcftool.py", "gcf_check.py", "esp32_check.py"}
 
 
 def main() -> int:

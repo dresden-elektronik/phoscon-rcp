@@ -346,6 +346,16 @@ target_include_directories(test_mg21_ident PRIVATE
 target_compile_options(test_mg21_ident PRIVATE -Wall -Wextra -std=c99)
 add_test(NAME mg21_ident COMMAND test_mg21_ident)
 
+# ---- hal/esp32: an ESP32 board's factory EUI-64 out of the eFuse MAC words --------------------------
+# The composition ESP-IDF uses for the 802.15.4 interface, against the bench XIAO ESP32-C6's own MAC as
+# esptool reads it (docs/hardware_esp32.md §12.2).
+add_executable(test_esp32_ident unit/test_esp32_ident.c tu/tu.c
+  ${CMAKE_SOURCE_DIR}/src/hal/esp32/esp32_ident.c)
+target_include_directories(test_esp32_ident PRIVATE
+  ${CMAKE_SOURCE_DIR}/test/tu ${CMAKE_SOURCE_DIR}/src/hal/esp32)
+target_compile_options(test_esp32_ident PRIVATE -Wall -Wextra -std=c99)
+add_test(NAME esp32_ident COMMAND test_esp32_ident)
+
 # ---- hal/avr: the ConBee I / RaspBee I factory EUI-64 out of the EEPROM's NV basic set ------------
 # Magic, id, length, both CRC versions, the MAC byte order per version, the early 0xDE00 magic and the
 # older big-endian prefix, against the application note's recovery example and vectors computed
@@ -488,6 +498,18 @@ if(Python3_Interpreter_FOUND)
   add_test(NAME avr_regs
     COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/test/unit/test_avr_regs.py)
   set_tests_properties(avr_regs PROPERTIES SKIP_RETURN_CODE 77)
+endif()
+
+# ---- hal/esp32: the register transcription, and the ESP32 pre-flash guard ------------------------
+# src/hal/esp32/esp32_regs.h and the chip's esp32_chip.h are compared value by value with ESP-IDF's
+# components/soc headers (ESP_IDF_PATH, or a maintainer's refs/ checkout; skipped (77) without one), and
+# tools/esp32_check.py refuses every image a rule is meant to refuse (docs/hardware_esp32.md §12).
+if(Python3_Interpreter_FOUND)
+  add_test(NAME esp32_regs
+    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/test/unit/test_esp32_regs.py)
+  set_tests_properties(esp32_regs PROPERTIES SKIP_RETURN_CODE 77)
+  add_test(NAME esp32_guard
+    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/test/unit/test_esp32_guard.py)
 endif()
 
 # ---- tools/dbg.py: the witness field tables decode their own fields -----------------------------

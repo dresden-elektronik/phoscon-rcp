@@ -12,6 +12,7 @@ Phoscon RCP (repository `phoscon-rcp`, build artifact `phoscon-rcp`): Spinel rad
 | `rb2` | RaspBee II | `src/hal/samr21/`, UART host link | `docs/hardware_samr21.md` §9 |
 | `cb3` | ConBee III | `src/hal/mg21/`: the `rail` back-end of the `rcp` image; the `own` back-end stays in the tree, unselected (`-DDS_MG21_RADIO=own`); `probe` drives no radio | `docs/hardware_mg21.md` |
 | `cbrb1` | ConBee I, RaspBee I | `src/hal/avr/`, no source shared with `src/hal/samr21/` | `docs/hardware_avr.md` §11 |
+| `xiaoc6` | Seeed XIAO ESP32-C6, an experiment outside the family (`docs/boards.md` §5) | `src/hal/esp32/`, the ESP32 family layer, with `src/hal/esp32/c6/`; `probe` only, no radio yet | `docs/hardware_esp32.md` §12 |
 
 What each board supports is `docs/protocol.md`, and what has run on it is `docs/testing.md`. Do not restate either here.
 
@@ -49,6 +50,7 @@ Firmware — the default image is `probe`; `-DDS_MODE=rcp` selects the RCP image
 | `cb2`, `rb2` | `cmake/arm-none-eabi.cmake` | `cmake -B build/fw -S src -G Ninja -DDEBOARD=cb2 -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/arm-none-eabi.cmake` |
 | `cb3` | `cmake/arm-none-eabi-m33.cmake` | `cmake -B build/fw-cb3 -S src -G Ninja -DDEBOARD=cb3 -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/arm-none-eabi-m33.cmake` |
 | `cbrb1` | `cmake/avr-gcc.cmake` (`avr-gcc` 14, `docs/build-and-flash.md` §11) | `cmake -B build/fw-cbrb1 -S src -G Ninja -DDEBOARD=cbrb1 -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/avr-gcc.cmake` |
+| `xiaoc6` | `cmake/riscv32-esp.cmake` (`riscv32-esp-elf`, esptool, `docs/build-and-flash.md` §13) | `cmake -B build/fw-xiaoc6 -S src -G Ninja -DDEBOARD=xiaoc6 -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/riscv32-esp.cmake` |
 
 Then `cmake --build <dir>`. Measured `.bin` sizes per board and image are the figures of `docs/build-and-flash.md` §3; update them in `tools/diagrams/image_sizes.py` when they change. Versions and the release steps: `docs/build-and-flash.md` §12.
 
@@ -60,13 +62,14 @@ python3 tools/gcf_check.py build/fw/phoscon-rcp.bin.GCF build/fw/phoscon-rcp.bin
 GCFFlasher -t 20 -f build/fw/phoscon-rcp.bin.GCF -d <port>    # GCFFlasher 4.12.6 or newer
 ```
 
+- **An ESP32 board is not packaged.** It keeps its ESP-IDF bootloader; `tools/esp32_flash.py --board <board> --port <port> <image> --elf <elf>` runs its guard, `tools/esp32_check.py`, and writes the app slot and nothing else - never below it, never an eFuse (`docs/build-and-flash.md` §13).
 - **Pre-flash guard (mandatory).** Every flash path runs `tools/gcf_check.py --board <board>` before GCFFlasher — magic, the board's type range (never plaintext), the board's target, the region the image must not reach, and freshness against the `.bin` (`docs/build-and-flash.md` §6). A failed build must never be packaged or flashed: a stale `.GCF` is otherwise flashed silently.
 - Before anything is flashed for the first time, a board target passes the audit gates of `docs/testing.md` §5, in its order.
 
 ## Documentation is the project's memory
 
 - Findings go into the doc that **owns the subject**; there is no diary. History — how a fact was found, what was tried and removed — does not go into a tracked doc; git keeps the commits.
-- The doc set: `README.md` (entry point: what this is, how to flash it) · `CONTRIBUTING.md` (issues, not pull requests; the rules and checks for a change) · `CHANGELOG.md` (each release) · `SECURITY.md` (reporting a vulnerability) · `docs/boards.md` (the family map, and adding a board) · `docs/architecture.md` (layers, modules, data flow, buffers, state machines) · `docs/protocol.md` (host-facing Spinel contract) · `docs/hardware.md` (index of the hardware docs) · `docs/hardware_samr21.md` (`§1`–`§9`) · `docs/hardware_mg21.md` (`§10`–`§10.9`) · `docs/hardware_avr.md` (`§11`–`§11.8`) · `docs/ack-pending-frame.md` (the Ack's Frame Pending bit) · `docs/build-and-flash.md` (toolchain, artifacts, packaging, flashing, guard, recovery, releases) · `docs/testing.md` (suites, rig, emulator gates) · `docs/stats.md` (measured performance on real sticks) · `docs/coding-rules.md` (the binding C conventions).
+- The doc set: `README.md` (entry point: what this is, how to flash it) · `CONTRIBUTING.md` (issues, not pull requests; the rules and checks for a change) · `CHANGELOG.md` (each release) · `SECURITY.md` (reporting a vulnerability) · `docs/boards.md` (the family map, and adding a board) · `docs/architecture.md` (layers, modules, data flow, buffers, state machines) · `docs/protocol.md` (host-facing Spinel contract) · `docs/hardware.md` (index of the hardware docs) · `docs/hardware_samr21.md` (`§1`–`§9`) · `docs/hardware_mg21.md` (`§10`–`§10.9`) · `docs/hardware_avr.md` (`§11`–`§11.8`) · `docs/hardware_esp32.md` (`§12`–`§12.5`) · `docs/ack-pending-frame.md` (the Ack's Frame Pending bit) · `docs/build-and-flash.md` (toolchain, artifacts, packaging, flashing, guard, recovery, releases) · `docs/testing.md` (suites, rig, emulator gates) · `docs/stats.md` (measured performance on real sticks) · `docs/coding-rules.md` (the binding C conventions).
 - The reader is a human engineer new to the project: lead each section with its conclusion, one claim per paragraph, tables over prose, and a generated figure (`tools/diagrams/`) over complex prose.
 - **Keep the docs short.** Every paragraph must answer "does a reader of a mature project need this?" Detail the code and its comments already carry, research narrative and measurement logs do not belong in a doc. Point to a document rather than a section unless the section matters.
 - House rules for every doc: no `file:line` references, no dates, no `row N`, no "we tried"; impersonal present tense; section numbers are cited from source comments, so a renumbering rewrites every citation in the same commit (`tools/docrefs.py` checks that every `§N` points at a section that exists); the hardware docs share one numbering, and a new silicon starts at the next free top-level number; one purpose per doc.

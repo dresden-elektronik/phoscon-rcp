@@ -45,6 +45,7 @@ Calls go down; events come back up through a contract. Above the board edge ever
 
 - **The core/glue split** is the load-bearing rule (`docs/coding-rules.md`): nothing in `rcp/` includes a register header or calls `HAL_*` or `Radio_*`. That is what makes the wire behaviour testable without a board.
 - **One silicon, one directory.** `hal/samr21/`, `hal/mg21/` and `hal/avr/` share no source. The ATmega256RFR2 carries the AT86RF233's register set, yet `hal/avr/` has its own radio driver: access, interrupts and core differ, and a shared file would be all `#if`.
+- **The ESP32 parts are one family layer.** Espressif's 802.15.4 parts carry the same blocks at different addresses, so `hal/esp32/` drives them once and `hal/esp32/<chip>/` holds each chip's numbers, picked by the board's include path; where a block differs in kind, as the C5's interrupt controller does, it gets a file of its own behind the same header, not an `#if` (`docs/hardware_esp32.md`).
 - **One host link per image.** `com/usb_cdc.c` serves the ConBee II's native USB; `com/uart.c` serves every UART board through the driver contract `hal/uart_drv.h`, so it frames Spinel without naming a SoC. A board names its link in its `board.cmake`.
 - **The ConBee III has two radio back-ends** behind the same `hal/radio.h`: `rail/` on Silicon Labs' RAIL library, which the `rcp` image uses, and `own/`, this tree's own sequencer program, which no image selects because it does not yet acknowledge. `-DDS_MG21_RADIO` selects one (§9); the `probe` image drives no radio and links neither.
 

@@ -104,7 +104,10 @@ enum
     DBG_WDT_RSN_SYNC_TIMEOUT,
     /* The ATmega256RFR2 watchdog (hal/avr/avr_wdt.c): 4 = the timed WDTCSR write did not take, line =
      * the value read back, and the image runs unprotected. ARMED carries WDTCSR there. */
-    DBG_WDT_RSN_AVR_REFUSED
+    DBG_WDT_RSN_AVR_REFUSED,
+    /* The ESP32 watchdogs (hal/esp32/esp32_wdt.c): 5 = the RTC watchdog the bootloader left armed was
+   * switched off, line = its CONFIG0 as found. ARMED carries the MWDT0 stage-0 hold in milliseconds. */
+    DBG_WDT_RSN_ESP32_RWDT_OFF
 };
 
 /* Radio reasons of the ConBee III back-end (hal/mg21/own/mg21_radio.c, docs/hardware_mg21.md §10.5).
@@ -191,7 +194,10 @@ enum
     DBG_FLASH_RSN_MG21_IDENTITY,
     /* The ConBee I / RaspBee I factory EUI-64, read once per boot from the EEPROM's NV basic set
    * (hal/avr/avr_nvram.c, docs/hardware_avr.md §11.3); line field = 1 an address, 0 none. */
-    DBG_FLASH_RSN_AVR_IDENTITY
+    DBG_FLASH_RSN_AVR_IDENTITY,
+    /* An ESP32 board's factory EUI-64, read once per boot from the eFuse MAC (hal/esp32/esp32_nvram.c,
+   * docs/hardware_esp32.md §12.2); line field = 1 an address, 0 none. */
+    DBG_FLASH_RSN_ESP32_IDENTITY
 };
 
 /* App reasons. FLASHER_RESET: a host GCF "reset into the bootloader" frame was
@@ -495,8 +501,27 @@ enum
     DBG_WITNESS_RSN_AVR_UART_RX_FERR, /* octets dropped as framed wrong (FE0) */
     DBG_WITNESS_RSN_AVR_FAULT_COMPONENT, /* what a previous run panicked in */
     DBG_WITNESS_RSN_AVR_FAULT_DETAIL,    /* the reason it panicked with */
-    DBG_WITNESS_RSN_SAMR21_RCAUSE        /* PM.RCAUSE, the last reset's cause as the bootloader left
+    DBG_WITNESS_RSN_SAMR21_RCAUSE,       /* PM.RCAUSE, the last reset's cause as the bootloader left
                                           * it: POR 0, BOD12 1, BOD33 2, EXT 4, WDT 5, SYST 6 */
+    /* The ESP32 bring-up (hal/esp32/), docs/hardware_esp32.md §12. */
+    DBG_WITNESS_RSN_ESP32_RESET_CAUSE,   /* LP_CLKRST reset cause [4:0]: 1 power-on, 3 software system
+                                          * reset, 7 MWDT0, 9 RWDT, 18 super WDT, 21 USB-UART (the
+                                          * CDC line state), 22 USB-JTAG */
+    DBG_WITNESS_RSN_ESP32_MSTATUS,       /* mstatus as the bootloader handed it over, low half */
+    DBG_WITNESS_RSN_ESP32_SYSTIMER_CONF, /* SYSTIMER CONF, high half: UNIT0_WORK_EN 14, TARGET0 8 */
+    DBG_WITNESS_RSN_ESP32_TICK_LINE,     /* the CPU interrupt line the millisecond alarm is routed to */
+    DBG_WITNESS_RSN_ESP32_USJ_LINE,      /* the CPU interrupt line the USB Serial/JTAG is routed to */
+    DBG_WITNESS_RSN_ESP32_PLIC_ENABLE,   /* the interrupt controller's enabled lines */
+    DBG_WITNESS_RSN_ESP32_MAC_HI,        /* the eFuse MAC's high half, [47:32] */
+    DBG_WITNESS_RSN_ESP32_MAC_EXT,       /* MAC_EXT, the two octets the EUI-64 puts in its middle */
+    DBG_WITNESS_RSN_ESP32_FAULT_COMPONENT, /* what a previous run panicked in */
+    DBG_WITNESS_RSN_ESP32_FAULT_DETAIL,    /* the reason it panicked with: mcause for an exception */
+    DBG_WITNESS_RSN_ESP32_FAULT_PC_LO,     /* mepc of that exception, low half */
+    DBG_WITNESS_RSN_ESP32_FAULT_PC_HI,
+    DBG_WITNESS_RSN_ESP32_HEARTBEAT,       /* seconds since boot (16-bit): a live report follows */
+    DBG_WITNESS_RSN_ESP32_USJ_RX_OCTETS,   /* octets the host sent since boot (16-bit, wraps) */
+    DBG_WITNESS_RSN_ESP32_USJ_FRAME        /* the last USB start-of-frame number: it moves while a host is
+                                            * attached and stops when none is */
 };
 
 /* Register monitor replies (DBG_COMP_MON, app/monitor_app.c, docs/hardware_mg21.md §10.5). One

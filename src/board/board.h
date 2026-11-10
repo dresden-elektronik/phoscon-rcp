@@ -25,7 +25,8 @@ enum
 {
     BOARD_RADIO_AT86RF233 = 0,
     BOARD_RADIO_MG21_ON_DIE,
-    BOARD_RADIO_ATMEGA256RFR2_ON_DIE /* the ConBee I / RaspBee I: no driver yet (docs/hardware_avr.md §11.8) */
+    BOARD_RADIO_ATMEGA256RFR2_ON_DIE, /* the ConBee I / RaspBee I: no driver yet (docs/hardware_avr.md §11.8) */
+    BOARD_RADIO_ESP32_ON_DIE /* an ESP32 802.15.4 part's own radio (docs/hardware_esp32.md §12) */
 };
 
 typedef struct

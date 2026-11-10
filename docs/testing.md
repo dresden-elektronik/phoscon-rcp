@@ -41,10 +41,10 @@ Plain C99 with a small in-house harness (`test/tu/`); no dependency beyond a com
 | `dbg_queue`, `dbg_decoder`, `flasher_trap`, `mon_proto` | the debug-record queue; the witness tables of `tools/dbg.py`; the flasher's reset request in the raw byte stream; the bench register monitor's commands and address policy |
 | `rcp_throughput` | `tools/rcp_throughput.py`'s estimate against the reference captures of `docs/protocol.md`, and its closed loop against a fake RCP pair, each outcome in its own count |
 | `uart_baud`, `usart_baud`, `avr_baud`, `avr_clock_us`, `tick_plan` | each silicon's divisor and clock arithmetic |
-| `samr21_basic`, `mg21_ident`, `avr_ident` | each board's identity parse |
-| `mg21_regs`, `mg21_vectors`, `avr_regs`, `cb3_layout`, `mg21_reset_record` | register transcriptions, vector tables and flash layout against the vendor's own descriptions |
+| `samr21_basic`, `mg21_ident`, `avr_ident`, `esp32_ident` | each board's identity parse |
+| `mg21_regs`, `mg21_vectors`, `avr_regs`, `esp32_regs`, `cb3_layout`, `mg21_reset_record` | register transcriptions, vector tables and flash layout against the vendor's own descriptions; `esp32_regs` needs an ESP-IDF checkout and is skipped without one |
 | `mg21_phy`, `mg21_rail_pa`, `mg21_radio_gen` | the ConBee III radio's arithmetic, power lookup, and generated data |
-| `gcf_guard`, `image_guard`, `flash_paths` | every rule of the pre-flash guard, each with a container that passes and one that does not, a container packed from another build included; the ConBee III's image size guard on both sides of its bound; every tracked tool that flashes running the guard for a named board |
+| `gcf_guard`, `esp32_guard`, `image_guard`, `flash_paths` | every rule of the pre-flash guards, each with a container or app image that passes and one that does not, one packed from another build included; the ConBee III's image size guard on both sides of its bound; every tracked tool that flashes running the guard for a named board |
 | `avr_int` | the portable code compiled with a 16-bit `int`, as the AVR boards run it, and no literal `1` of `int` width shifted by a variable count |
 
 `mg21_radio_map` runs only where the maintainers' full radio record is present.

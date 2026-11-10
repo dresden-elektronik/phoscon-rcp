@@ -8,6 +8,7 @@ The family this firmware serves, what differs between its boards, and how a boar
 | 2 | [Board differences](#2-board-differences) |
 | 3 | [Shared and per-board code](#3-shared-and-per-board-code) |
 | 4 | [The target model, and adding a board](#4-the-target-model-and-adding-a-board) |
+| 5 | [Experimental targets](#5-experimental-targets) |
 
 ## 1. The family
 
@@ -56,3 +57,13 @@ Three seams a port easily misses:
 - **A wired link is one adapter and one driver.** `com/uart.c` implements the host link over the driver contract `hal/uart_drv.h`; each silicon supplies the driver. A different UART replaces the driver and keeps the adapter.
 - **Some `hal/hal.h` entries are SAMR21 facts** — waking the separate radio chip, the bootloader's update flag, the USB serial. A board without them leaves them undefined, so reaching for one is a link error, not a routine that returns a lie.
 - **The core reads three descriptor fields:** `ncpVersion`, `linkBaud`, `appOrigin`. The rest is the board's own data.
+
+## 5. Experimental targets
+
+Boards outside the family that this tree builds for, to learn a silicon; no release carries them and `docs/protocol.md` does not list them. Each follows the target model of §4.
+
+| target | board | silicon layer | state |
+|---|---|---|---|
+| `xiaoc6` | Seeed Studio XIAO ESP32-C6 | `src/hal/esp32/` with `src/hal/esp32/c6/` (`docs/hardware_esp32.md`) | the probe image runs; no radio yet |
+
+An ESP32 board keeps its ESP-IDF bootloader and partition table, and its image is flashed with esptool into the app slot, not packaged as a GCF container (`docs/build-and-flash.md` §13).

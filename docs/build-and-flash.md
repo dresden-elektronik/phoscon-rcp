@@ -16,6 +16,7 @@ How to build the firmware for each board, package it, check the container, flash
 | 10 | [The ConBee III radio back-end](#10-the-conbee-iii-radio-back-end) |
 | 11 | [The ConBee I and RaspBee I](#11-the-conbee-i-and-raspbee-i) |
 | 12 | [Versions and releases](#12-versions-and-releases) |
+| 13 | [ESP32 boards, experimental](#13-esp32-boards-experimental) |
 
 ## 1. Toolchain
 
@@ -258,3 +259,24 @@ To release, in this order:
 2. Run `python3 tools/release_images.py --snapshot` with `GCFTOOL` naming the keyed tool, and flash each container on its board.
 3. Tag the commit `v<VERSION>`, run `python3 tools/release_images.py`, and attach `dist/<version>/` to the GitHub release: one container per board and `SHA256SUMS`. A tagged build differs from a snapshot in the version string, so flash the tagged containers again.
 4. Add the containers to the updater's manifest at <https://phoscon.de/updater>.
+
+## 13. ESP32 boards, experimental
+
+An ESP32 board keeps its ESP-IDF bootloader and partition table; the image is an ESP-IDF app for the board's app slot, written by esptool from the ELF and flashed by esptool. No GCF container, no GCFFlasher and no release is involved (`docs/hardware_esp32.md`).
+
+```sh
+cmake -B build/fw-xiaoc6 -S src -G Ninja -DDEBOARD=xiaoc6 -DCMAKE_TOOLCHAIN_FILE=$PWD/cmake/riscv32-esp.cmake
+cmake --build build/fw-xiaoc6
+.venv-tools/bin/python tools/esp32_flash.py --board xiaoc6 --port <port> \
+  build/fw-xiaoc6/phoscon-rcp.bin --elf build/fw-xiaoc6/phoscon-rcp
+```
+
+| item | what |
+|---|---|
+| toolchain | Espressif's `riscv32-esp-elf` from its crosstool-NG release `esp-16.1.0_20260609`, the build ESP-IDF pins, unpacked into `~/opt/riscv32-esp-elf-16.1.0_20260609/` or named with `-DDS_RISCV_ESP_BIN=<dir>` |
+| esptool | 5.6.0 in `.venv-tools/` (`python3 -m venv .venv-tools && .venv-tools/bin/pip install esptool==5.6.0`); the build runs its `elf2image` |
+| the image | `phoscon-rcp.bin` is the app image, not a flat binary; the image guard checks it fits the app slot |
+| the guard | `tools/esp32_check.py --board <board> <image> --elf <elf>`: the image's magic, chip and revision range, checksum and hash, the app descriptor, exactly two flash segments at their page offsets, RAM inside the app's bound, the slot, and that it was written from that ELF. `tools/esp32_flash.py` runs it, compares the board's partition table with the one it records, writes the slot, and reads it back |
+| what is never written | anything below the app slot, and the eFuses: the wrapper issues only `read-flash` and `write-flash` at the slot's origin |
+| recovery | the ROM's download mode, which esptool reaches over the USB line state; BOOT held while plugging in if a board stops answering. The factory app is the slot's range of a full `read-flash` taken before the first write |
+| the port | the USB Serial/JTAG port is named after the USB socket, not the board, and shares `cu.usbmodem` with the ConBee II (§7) |
