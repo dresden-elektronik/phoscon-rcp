@@ -119,7 +119,7 @@ The `rcp` image brings the PHY up at boot, before its radio back-end (§12.6). T
 | `tools/rcp_pair.py` | every cell, both ways: the filter per mode, the Ack policy, the Frame Pending bit, frames longer than one USB packet |
 | `tools/rcp_matrix.py` | every cell, both directions |
 | frames of 20 to 125 octets to the XIAO | all reported byte-identical |
-| broadcast bursts from the XIAO | 1 to 4 % lost on channel 26 at 0 dBm, each reported sent; none of 120 at +10 dBm, 1 of 120 on channel 25 at −10 dBm. A ConBee II sending at −12 dBm, its cap on channel 26, loses none of 160 to the same receiver, so the loss is the XIAO's; its cause is open |
+| broadcast bursts from the XIAO, each reported sent | at −10 dBm, 17 of 360 lost on channel 26, 1 of 120 on channel 25 and 1 of 280 on channel 11, though the same receiver hears it about 9 dB stronger on 26 than on 11; none of 120 on 26 at +10 dBm. ConBee II to ConBee II loses none of 160, on 26 at −12 dBm (its cap there) and on 11 at −10 dBm. The loss is the XIAO's on channel 26, and its cause is open |
 
 | fact | consequence |
 |---|---|
