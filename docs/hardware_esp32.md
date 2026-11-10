@@ -111,7 +111,7 @@ The `rcp` image brings the PHY up at boot, before its radio back-end (§12.6). T
 
 ### 12.6 The 802.15.4 MAC
 
-`hal/esp32/esp32_radio.c` is the `rcp` image's radio back-end. On the bench XIAO against a ConBee II, on channels 26 and 25:
+`hal/esp32/esp32_radio.c` is the `rcp` image's radio back-end. On the bench XIAO against a ConBee II, on channels 11 and 15, and 26 and 25:
 
 | rig | result |
 |---|---|
@@ -119,7 +119,8 @@ The `rcp` image brings the PHY up at boot, before its radio back-end (§12.6). T
 | `tools/rcp_pair.py` | every cell, both ways: the filter per mode, the Ack policy, the Frame Pending bit, frames longer than one USB packet |
 | `tools/rcp_matrix.py` | every cell, both directions |
 | frames of 20 to 125 octets to the XIAO | all reported byte-identical |
-| broadcast bursts, each reported sent | on the bench, within 3 m, losses follow the energy a channel carries, in both directions, and only at the lower level the XIAO's link is heard at. At −10 dBm, XIAO to ConBee II: 2 of 200 lost on channel 11, 24 on 15, all on 20, 1 on 25 and 13 on 26; the other way, none on 11, 15 and 26, all on 20. A lost frame arrives with a bad FCS and one run of corrupted octets, or not at all. Channel 20 holds a steady −41 dBm in an energy scan: at +10 dBm, heard at −35 dBm, none of 200 is lost; at 0 dBm, heard at −45 dBm, all are. Two ConBee IIs heard at −19 to −29 dBm lose at most 1 of 100 on any of these channels. The loss belongs to the bench's channels, not to the XIAO's radio |
+| broadcast bursts at −10 dBm, each reported sent | lost of 200, XIAO to ConBee II and back: 2 and 0 on channel 11, 24 and 0 on 15, 1 and 3 on 25, 13 and 0 on 26; a lost frame mostly arrives with a bad FCS and one run of corrupted octets. A ConBee II pair, heard at −19 to −29 dBm, loses at most 1 of 100. Use channel 11 for the rigs |
+| channel 20 | every frame is lost, both ways, at 0 and −10 dBm; none at +10 dBm. The XIAO's frames carry a corrupted run of about 160 µs every 1 ms, at a ConBee III on another host as well, whose own channel 20 is quiet; with the XIAO's tick slowed to 2 ms and with its port closed, too. Both ConBee IIs read a steady −41 to −44 dBm there. The cause is open |
 
 | fact | consequence |
 |---|---|
