@@ -63,6 +63,8 @@ left: received frames, and the end of a transmission. */
 /* The bound on a transmission, every try and backoff included: 15 retries of a 127-octet frame with the
  * longest backoffs and Ack waits stay below 400 ms. Past it the transmission ends as TIMEOUT. */
 #define RADIO_TX_BOUND_MS 500u
+/* ESP-IDF tracks the PHY's PLL once a second (esp_phy's PHY_TRACK_PLL_PERIOD_IN_US). */
+#define RADIO_PLL_TRACK_MS 1000u
 /* The frame control field's bits this file reads. */
 #define RADIO_FCF_FRAME_PENDING 0x10u
 #define RADIO_FCF_ACK_REQUEST 0x20u
@@ -107,6 +109,7 @@ static volatile uint8_t radioTxPending;
 static volatile uint8_t radioTxDue;
 static uint32_t radioTxStartMs;
 static volatile uint16_t radioTxStuck;
+static uint32_t radioTrackDueMs;
 static void *radioTxToken;
 static uint8_t radioTxCca;
 static uint8_t radioTxNb;
@@ -868,6 +871,7 @@ void Radio_Poll(void)
 {
     Radio_Frame *f;
     void *token;
+    uint32_t ms;
 
     if (radioState == RADIO_ST_DOWN)
         return;
@@ -887,12 +891,18 @@ void Radio_Poll(void)
         HAL_IrqUnlock();
     }
 
+    Tick_GetMs(&ms);
+
+    /* The PLL tracking, between transmissions and energy measurements, as ESP-IDF runs it beside its
+     * driver. A round takes about 5 us. */
+    if ((int32_t)(ms - radioTrackDueMs) >= 0 && !radioTxPending && radioState != RADIO_ST_ED)
+    {
+        radioTrackDueMs = ms + RADIO_PLL_TRACK_MS;
+        Esp32Phy_Track();
+    }
+
     if (radioTxPending && !radioTxEnded)
     {
-        uint32_t ms;
-
-        Tick_GetMs(&ms);
-
         /* A transmission past its bound is ended here, and the radio goes back to the host's wish. */
         if ((uint32_t)(ms - radioTxStartMs) > RADIO_TX_BOUND_MS)
         {

@@ -17,4 +17,8 @@
  * 1 = the PHY came up: 0, or the calibration-check failure every boot of this firmware reports. */
 int Esp32Phy_Init(void);
 
+/* One round of the PLL tracking ESP-IDF repeats every second from a timer for its Bluetooth and 802.15.4
+ * side (esp_phy's phy_track_pll). Thread context, after Esp32Phy_Init came up. */
+void Esp32Phy_Track(void);
+
 #endif /* ESP32_PHY_H */

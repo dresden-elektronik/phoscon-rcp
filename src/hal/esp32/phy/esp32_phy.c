@@ -148,3 +148,8 @@ int Esp32Phy_Init(void)
 
     return result == 0 || result == PHY_CAL_DATA_CHECK_FAIL;
 }
+
+void Esp32Phy_Track(void)
+{
+    phy_param_track_tot(0, 1);
+}

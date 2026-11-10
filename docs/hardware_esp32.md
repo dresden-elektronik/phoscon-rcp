@@ -101,13 +101,13 @@ The `rcp` image brings the PHY up at boot, before its radio back-end (§12.6). T
 | `ets_update_cpu_frequency(160)` | the ROM's delays count CPU cycles at the rate the bootloader set |
 | `phy_init_param_set(1)` | the PHY serves Wi-Fi, BLE and 802.15.4 (ESP-IDF's `SOC_PHY_COMBO_MODULE`), and must not come up in Wi-Fi receive |
 | `register_chipv7_phy(init table, empty record, full)` | the archive's entry point: answers 1, "the record failed its check", and calibrates in full in about 45 ms. Every boot does, since the firmware keeps nothing |
-| `bt_bb_v2_init_cmplx`, then one `phy_param_track_tot(0, 1)` | the baseband, and the PLL tracking ESP-IDF then repeats from a timer, which this tree does not yet |
+| `bt_bb_v2_init_cmplx`, then one `phy_param_track_tot(0, 1)` | the baseband, and the PLL tracking, which ESP-IDF repeats every second from a timer and the radio back-end from its poll, between transmissions; a round takes about 5 µs |
 
 | item | state |
 |---|---|
 | the libraries | `esp-phy-lib`'s `esp32c6/libphy.a` and `libbtbb.a` at the commit ESP-IDF v5.4.1 pins, Apache-2.0, fetched with the ROM address lists of the same tag (`src/lib/PROVENANCE.md`). They reach 94 outside symbols: 87 in the ROM's PHY list, `ets_delay_us` in its main list, `__divdi3` in libgcc, and five the host supplies, `memcpy`, `memset`, `sprintf`, `phy_printf` and `rtc_clk_xtal_freq_get` (`hal/esp32/phy/phy_shims.c`). Neither reaches a coexistence or Wi-Fi library. Their RAM code is in ESP-IDF's `.iram1` sections, which the linker script places with this tree's |
 | the init table | ESP-IDF's default for the chip with its 20 dBm cap, evaluated by the fetch tool |
-| not done | the repeated PLL tracking; transmit power per channel |
+| not done | transmit power per channel |
 
 ### 12.6 The 802.15.4 MAC
 
@@ -119,7 +119,7 @@ The `rcp` image brings the PHY up at boot, before its radio back-end (§12.6). T
 | `tools/rcp_pair.py` | every cell, both ways: the filter per mode, the Ack policy, the Frame Pending bit, frames longer than one USB packet |
 | `tools/rcp_matrix.py` | every cell, both directions |
 | frames of 20 to 125 octets to the XIAO | all reported byte-identical |
-| broadcast bursts from the XIAO, each reported sent | at −10 dBm, 17 of 360 lost on channel 26, 1 of 120 on channel 25 and 1 of 280 on channel 11, though the same receiver hears it about 9 dB stronger on 26 than on 11; none of 120 on 26 at +10 dBm. ConBee II to ConBee II loses none of 160, on 26 at −12 dBm (its cap there) and on 11 at −10 dBm. The loss is the XIAO's on channel 26, and its cause is open |
+| broadcast bursts from the XIAO, each reported sent | at −10 dBm, 17 of 360 lost on channel 26, 1 of 120 on channel 25 and 1 of 280 on channel 11, though the same receiver hears it about 9 dB stronger on 26 than on 11; none of 120 on 26 at +10 dBm. ConBee II to ConBee II loses none of 160, on 26 at −12 dBm (its cap there) and on 11 at −10 dBm. The loss is the XIAO's on channel 26, the PLL tracking every second leaves it as it was, and its cause is open |
 
 | fact | consequence |
 |---|---|
