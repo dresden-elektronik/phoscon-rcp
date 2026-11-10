@@ -529,7 +529,13 @@ enum
     DBG_WITNESS_RSN_ESP32_AHB_FREQ,        /* PCR AHB_FREQ_CONF: AHB_LS_DIV_NUM [7:0], AHB_HS_DIV_NUM [15:8] */
     DBG_WITNESS_RSN_ESP32_CPU_MHZ,         /* the CPU clock those registers make, in MHz */
     DBG_WITNESS_RSN_ESP32_GPIO_OUT,        /* GPIO OUT [15:0] after the board's pins were set */
-    DBG_WITNESS_RSN_ESP32_GPIO_ENABLE      /* GPIO ENABLE [15:0]: the pins driven as outputs */
+    DBG_WITNESS_RSN_ESP32_GPIO_ENABLE,     /* GPIO ENABLE [15:0]: the pins driven as outputs */
+    DBG_WITNESS_RSN_ESP32_PHY_RESULT,      /* what register_chipv7_phy returned: 1 = the empty calibration
+                                            * record failed its check and a full calibration ran */
+    DBG_WITNESS_RSN_ESP32_PHY_MS,          /* how long the PHY's bring-up and calibration took, in ms */
+    DBG_WITNESS_RSN_ESP32_BTBB_MS,         /* how long the baseband's bring-up took, in ms */
+    DBG_WITNESS_RSN_ESP32_MODEM_CLK,       /* MODEM_SYSCON CLK_CONF high half: ETM 6, ZB_APB 7, ZB_MAC 8 */
+    DBG_WITNESS_RSN_ESP32_MODEM_CLK1       /* MODEM_SYSCON CLK_CONF1 [31:13] >> 13: FE_80M 0 .. BT 5 */
 };
 
 /* Register monitor replies (DBG_COMP_MON, app/monitor_app.c, docs/hardware_mg21.md §10.5). One

@@ -18,6 +18,7 @@ if(DEFINED DS_MODE AND DS_MODE STREQUAL "rcp")
 endif()
 
 set(DS_BOARD_SOURCES "${CMAKE_CURRENT_LIST_DIR}/board.c")
+set(DS_ESP32_CHIP "esp32c6")
 set(DS_ESP32_CHIP_DIR "${DS_SRC_DIR}/hal/esp32/c6")
 
 set(DS_STARTUP "${DS_SRC_DIR}/startup/startup_esp32.S")
@@ -87,4 +88,14 @@ set(DS_IMAGE_COMMAND ${DS_ESPTOOL} --chip esp32c6 elf2image --flash-mode dio --f
 option(DS_ESP32_ANTENNA_UFL "xiaoc6: use the U.FL antenna socket instead of the ceramic antenna" OFF)
 if(DS_ESP32_ANTENNA_UFL)
   list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_ANTENNA_UFL=1)
+endif()
+
+# The radio's PHY on Espressif's libraries (hal/esp32/phy/phy.cmake). Until the radio driver lands, a probe
+# image built with -DDS_ESP32_PHY_PROBE=ON brings the PHY up at boot and reports how it went.
+option(DS_ESP32_PHY_PROBE "xiaoc6: bring the radio's PHY up in the probe image" OFF)
+if(DS_ESP32_PHY_PROBE)
+  include(${DS_SRC_DIR}/hal/esp32/phy/phy.cmake)
+  list(APPEND DS_HAL_SOURCES ${DS_ESP32_PHY_SOURCES})
+  list(APPEND DS_COMPILE_OPTIONS -DDS_ESP32_PHY_PROBE=1)
+  list(APPEND DS_INCLUDE_DIRS ${DS_SRC_DIR}/hal/esp32/phy)
 endif()

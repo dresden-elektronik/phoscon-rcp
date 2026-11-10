@@ -15,9 +15,20 @@ Two rules come with them:
 - **They are never restyled or reformatted** (`docs/coding-rules.md` §6). Keeping the upstream text intact keeps a future update a diff instead of a rewrite.
 - **Each library records the upstream revision it came from**, so the next update starts from a known point. U_SStream predates the rule and has none yet; its next update records one.
 
+## Fetched at build time: Espressif's PHY libraries
+
+An ESP32 board's radio (`docs/hardware_esp32.md`) brings its RF up through Espressif's prebuilt PHY libraries. Nothing of them is vendored: `tools/fetch_esp_phy.py` downloads them at configure time into a cache outside the tree, and only this tree's glue (`src/hal/esp32/phy/`) is in `src/`.
+
+| item | value |
+|---|---|
+| origin | `github.com/espressif/esp-phy-lib` at `aa6bac1e0a83ea70fa3f03a72041efddaeb7b898`, the commit ESP-IDF `v5.4.1` pins as its `components/esp_phy/lib`; and `github.com/espressif/esp-idf` at `v5.4.1` |
+| files | `esp32c6/libphy.a` (SHA-256 `c8e926c5511adc0fe0179f10e378c78cb5cfd3f77ed679428683c150ace6a4a8`), `esp32c6/libbtbb.a`, esp-phy-lib's `LICENSE`; from ESP-IDF `components/esp_rom/esp32c6/ld/esp32c6.rom.phy.ld` and `esp32c6.rom.ld`, `components/esp_phy/esp32c6/phy_init_data.c` and its `LICENSE`; every hash is in `tools/fetch_esp_phy.py` |
+| licence | Apache-2.0, both repositories |
+| how it is used | the archives and the ROM's PHY address list are linked into an image that drives the radio; two ROM routines are taken from the main list; the init table is evaluated into the cache and included by one translation unit. Never restyled, never copied into `src/` or the repository |
+
 ## Fetched at build time: the RAIL library
 
-The ConBee III's `rail` radio back-end (the `rcp` image's default, `docs/build-and-flash.md` §10) links Silicon Labs' RAIL library. Nothing of it is vendored: `tools/fetch_rail.py` downloads it at configure time into a cache outside the tree, and only this tree's adapter (`src/hal/mg21/rail/`) is in `src/`. It is recorded here because it is the one third-party binary a build can link.
+The ConBee III's `rail` radio back-end (the `rcp` image's default, `docs/build-and-flash.md` §10) links Silicon Labs' RAIL library. Nothing of it is vendored: `tools/fetch_rail.py` downloads it at configure time into a cache outside the tree, and only this tree's adapter (`src/hal/mg21/rail/`) is in `src/`. It is recorded here because it is a third-party binary a build can link.
 
 | item | value |
 |---|---|

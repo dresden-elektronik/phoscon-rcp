@@ -6,7 +6,7 @@ Section numbers continue `docs/hardware_avr.md`, so this document starts at §12
 
 ## 12. ESP32 802.15.4 parts
 
-The probe image runs on the XIAO ESP32-C6; the radio is not driven yet, and no `rcp` image is offered. The TRM documents every block the probe image uses but not the 802.15.4 radio: its registers are public only as ESP-IDF's `ieee802154_reg.h` and driver, and its RF bring-up and calibration only as Espressif's closed `libphy.a` and `libbtbb.a`.
+The probe image runs on the XIAO ESP32-C6 and can bring its PHY up; the 802.15.4 MAC is not driven yet, and no `rcp` image is offered. The TRM documents every block the probe image uses but not the 802.15.4 radio: its registers are public only as ESP-IDF's `ieee802154_reg.h` and driver, and its RF bring-up and calibration only as Espressif's closed `libphy.a` and `libbtbb.a`.
 
 ### 12.1 The family layer
 
@@ -89,9 +89,16 @@ Two audits of `docs/testing.md` §5 do not run as written on this board:
 | D, the container against the vendor's | there is no container; `tools/esp32_check.py` parses the app image itself, and agrees with `esptool image-info` on this tree's image and on the board's factory ESP-IDF app |
 | S, an interrupted update keeps the old app | not runnable: the partition table has one app slot, so an interrupted write leaves no app. Recovery is the ROM's download mode, which needs no button |
 
-### 12.5 What the radio needs
+### 12.5 The radio's PHY
+
+The RF bring-up runs on the bench XIAO: a probe image built with `-DDS_ESP32_PHY_PROBE=ON` opens the modem clocks, brings the PHY up with a full calibration in 45 ms, then the baseband, and keeps running. The 802.15.4 MAC is not driven yet.
 
 | item | state |
 |---|---|
 | the MAC's registers | ESP-IDF's `soc/esp32c6/register/soc/ieee802154_reg.h` and `components/ieee802154/driver`, Apache-2.0: read, never copied |
-| RF bring-up and calibration | `esp-phy-lib`'s `esp32c6/libphy.a` and `libbtbb.a`, Apache-2.0. They reach 99 outside symbols, 93 of them mask-ROM routines named in ESP-IDF's `esp_rom/esp32c6/ld`, and 6 the host supplies: `memcpy`, `memset`, `sprintf`, `phy_printf`, `rtc_clk_xtal_freq_get`, `rfpll_cap_track`. Neither reaches a coexistence or Wi-Fi library |
+| the libraries | `esp-phy-lib`'s `esp32c6/libphy.a` and `libbtbb.a` at the commit ESP-IDF v5.4.1 pins, Apache-2.0, fetched with the ROM address lists of the same tag (`src/lib/PROVENANCE.md`). They reach 94 outside symbols: 87 in the ROM's PHY list, `ets_delay_us` in its main list, `__divdi3` in libgcc, and five the host supplies, `memcpy`, `memset`, `sprintf`, `phy_printf` and `rtc_clk_xtal_freq_get` (`hal/esp32/phy/phy_shims.c`). Neither reaches a coexistence or Wi-Fi library. Their RAM code is in ESP-IDF's `.iram1` sections, which the linker script places with this tree's |
+| the modem clocks | the gates ESP-IDF opens for its PHY and 802.15.4 modules: the analog I2C master and coexistence in `MODEM_LPCON`; the front end's APB, 80, 160 and calibration clocks, the shared BT/802.15.4 baseband, the 802.15.4 APB and MAC clocks and the event matrix in `MODEM_SYSCON` |
+| the ROM's delays | they count CPU cycles at the rate the bootloader set; `ets_update_cpu_frequency` gets the 160 MHz before the PHY runs |
+| the entry point | `register_chipv7_phy(init table, calibration record, full)`: the init table is ESP-IDF's default for the chip with its 20 dBm cap, evaluated by the fetch tool; the record starts empty, so the call answers 1, "the record failed its check", and calibrates in full. Every boot does, since the firmware keeps nothing |
+| the baseband | `bt_bb_v2_init_cmplx`, after the PHY |
+| not done | the PHY's PLL tracking, which ESP-IDF repeats from a timer; transmit power per channel |

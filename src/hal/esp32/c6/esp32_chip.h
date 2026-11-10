@@ -30,6 +30,8 @@
 #define ESP32_EFUSE_BASE 0x600B0800u
 #define ESP32_LP_AON_BASE 0x600B1000u
 #define ESP32_LP_WDT_BASE 0x600B1C00u
+#define ESP32_MODEM_SYSCON_BASE 0x600A9800u
+#define ESP32_MODEM_LPCON_BASE 0x600AF000u
 
 /* ---- Interrupt sources: the interrupt matrix's map register for source n is at INTMTX + 4n ---- */
 #define ESP32_SRC_ZB_MAC 12u
@@ -46,6 +48,22 @@
 #define ESP32_LP_CLKRST_RESET_CAUSE 0x010u /* [4:0] the HP core's last reset cause */
 #define ESP32_LP_AON_SYS_CFG 0x034u
 #define ESP32_LP_AON_HPSYS_SW_RESET (1u << 31)
+
+/* ---- Modem clock gates (ESP-IDF modem_clock.c): what the PHY and the 802.15.4 MAC need running ---- */
+#define ESP32_MODEM_SYSCON_CLK_CONF 0x004u
+#define ESP32_MODEM_SYSCON_CLK_ETM_EN (1u << 22)
+#define ESP32_MODEM_SYSCON_CLK_ZB_APB_EN (1u << 23)
+#define ESP32_MODEM_SYSCON_CLK_ZB_MAC_EN (1u << 24)
+#define ESP32_MODEM_SYSCON_CLK_CONF1 0x014u
+#define ESP32_MODEM_SYSCON_CLK_FE_80M_EN (1u << 13)
+#define ESP32_MODEM_SYSCON_CLK_FE_160M_EN (1u << 14)
+#define ESP32_MODEM_SYSCON_CLK_FE_CAL_160M_EN (1u << 15)
+#define ESP32_MODEM_SYSCON_CLK_FE_APB_EN (1u << 16)
+#define ESP32_MODEM_SYSCON_CLK_BT_APB_EN (1u << 17)
+#define ESP32_MODEM_SYSCON_CLK_BT_EN (1u << 18)
+#define ESP32_MODEM_LPCON_CLK_CONF 0x018u
+#define ESP32_MODEM_LPCON_CLK_COEX_EN (1u << 1)
+#define ESP32_MODEM_LPCON_CLK_I2C_MST_EN (1u << 2)
 
 /* ---- GPIO: the pins this chip has, and where each one's IO_MUX register is ---- */
 #define ESP32_GPIO_PINS 31u

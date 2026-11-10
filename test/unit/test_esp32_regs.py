@@ -148,6 +148,22 @@ COMPARE = {
     "ESP32_IO_MUX_MCU_SEL_MASK": "MCU_SEL_V << MCU_SEL_S",
     "ESP32_IO_MUX_FUNC_GPIO": "PIN_FUNC_GPIO",
     "ESP32_IO_MUX_FUN_IE": "1 << FUN_IE_S",
+    "ESP32_MODEM_SYSCON_BASE": "DR_REG_MODEM_SYSCON_BASE",
+    "ESP32_MODEM_LPCON_BASE": "DR_REG_MODEM_LPCON_BASE",
+    "ESP32_MODEM_SYSCON_CLK_CONF": "MODEM_SYSCON_CLK_CONF_REG - DR_REG_MODEM_SYSCON_BASE",
+    "ESP32_MODEM_SYSCON_CLK_ETM_EN": "MODEM_SYSCON_CLK_ETM_EN",
+    "ESP32_MODEM_SYSCON_CLK_ZB_APB_EN": "MODEM_SYSCON_CLK_ZB_APB_EN",
+    "ESP32_MODEM_SYSCON_CLK_ZB_MAC_EN": "MODEM_SYSCON_CLK_ZB_MAC_EN",
+    "ESP32_MODEM_SYSCON_CLK_CONF1": "MODEM_SYSCON_CLK_CONF1_REG - DR_REG_MODEM_SYSCON_BASE",
+    "ESP32_MODEM_SYSCON_CLK_FE_80M_EN": "MODEM_SYSCON_CLK_FE_80M_EN",
+    "ESP32_MODEM_SYSCON_CLK_FE_160M_EN": "MODEM_SYSCON_CLK_FE_160M_EN",
+    "ESP32_MODEM_SYSCON_CLK_FE_CAL_160M_EN": "MODEM_SYSCON_CLK_FE_CAL_160M_EN",
+    "ESP32_MODEM_SYSCON_CLK_FE_APB_EN": "MODEM_SYSCON_CLK_FE_APB_EN",
+    "ESP32_MODEM_SYSCON_CLK_BT_APB_EN": "MODEM_SYSCON_CLK_BT_APB_EN",
+    "ESP32_MODEM_SYSCON_CLK_BT_EN": "MODEM_SYSCON_CLK_BT_EN",
+    "ESP32_MODEM_LPCON_CLK_CONF": "MODEM_LPCON_CLK_CONF_REG - DR_REG_MODEM_LPCON_BASE",
+    "ESP32_MODEM_LPCON_CLK_COEX_EN": "MODEM_LPCON_CLK_COEX_EN",
+    "ESP32_MODEM_LPCON_CLK_I2C_MST_EN": "MODEM_LPCON_CLK_I2C_MST_EN",
     "ESP32_PLIC_ENABLE": "PLIC_MXINT_ENABLE_REG - DR_REG_PLIC_MX_BASE",
     "ESP32_PLIC_TYPE": "PLIC_MXINT_TYPE_REG - DR_REG_PLIC_MX_BASE",
     "ESP32_PLIC_CLEAR": "PLIC_MXINT_CLEAR_REG - DR_REG_PLIC_MX_BASE",
@@ -233,6 +249,8 @@ def main():
                  os.path.join(soc, "include", "soc", "gpio_sig_map.h")]
     idf_paths += [os.path.join(soc, "register", "soc", f) for f in sorted(os.listdir(os.path.join(soc, "register", "soc")))
                   if f.endswith("_reg.h") or f == "reg_base.h"]
+    modem = os.path.join(soc, "include", "modem")
+    idf_paths += [os.path.join(modem, f) for f in sorted(os.listdir(modem)) if f.endswith(".h")]
     idf, idf_fn = collect(idf_paths)
     ld_dir = os.path.join(root, "components", "bootloader", "subproject", "main", "ld", CHIP)
     ld = os.path.join(ld_dir, "bootloader.memory.ld.in")      # its name from v5.5 on

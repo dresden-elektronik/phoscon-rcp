@@ -49,6 +49,8 @@ SECTIONS
         KEEP(*(.iram.text.entry))
         *(.iram.text.trap)
         *(.iram.text .iram.text.*)
+        /* ESP-IDF's name for code that runs from RAM, which the PHY archives use. */
+        *(.iram1 .iram1.*)
         . = ALIGN(4);
     } > ram
 
