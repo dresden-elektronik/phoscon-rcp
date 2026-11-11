@@ -32,8 +32,13 @@ With timed transmit (RCP_TX_TIMING), for an OpenThread host:
                 keys a 2015 frame gets no Ack at all, where the AVR back-end sends an immediate one.
   stamps        a received frame's timestamp is the radio clock at its SFD, taken in the vector at the MAC's
                 RX_SFD_DONE event.
-  timed frames  Radio_TxAt starts its one attempt from the MAC's timer 0, ahead of the moment by the ramp-up
-                ESP-IDF allows and the preamble and SFD; the Ack of each transmission is kept for the host.
+  timed frames  Radio_TxAt's one attempt is started by the modem's event matrix at timer 0's end, in hardware,
+                ahead of the moment by the ramp-up ESP-IDF allows and the preamble and SFD. The MAC keeps
+                receiving until a guard before it, when the vector stops it and arms the channel. The Ack of
+                each transmission is kept for the host.
+
+The LQI the MAC reports barely moves with the signal, so the one handed up is the RSSI's: 0 at the board's
+sensitivity, 255 from 20 dB above it, as the other boards' radios fall off near their sensitivity.
 
 The machine's state changes only in the vector or with interrupts locked. The loop takes what the vector
 left: received frames, and the end of a transmission. */
@@ -86,16 +91,27 @@ left: received frames, and the end of a transmission. */
 /* What goes on air before the end of the SFD: four octets of preamble and the SFD, 32 us each. */
 #define RADIO_OCTET_US 32u
 #define RADIO_SHR_US (5u * RADIO_OCTET_US)
-/* ESP-IDF's ramp-up from the command to the first symbol: a transmission, and a CCA and the transmission
- * after it (esp_ieee802154_dev.h). */
+/* The ramp-up from the start to the first symbol: ESP-IDF's for a transmission (esp_ieee802154_dev.h); for a
+ * CCA and the transmission after it, ESP-IDF allows 256 us and the sum below, measured with it, comes out
+ * 43 us later, so the CCA's start is taken that much earlier. */
 #define RADIO_TX_RAMPUP_US 98u
-#define RADIO_CCA_TX_RAMPUP_US 256u
+#define RADIO_CCA_TX_RAMPUP_US 299u
+/* Against a ConBee II, this board's transmit and receive errors add up to 47 us, its stamps and its starts
+ * late together (docs/hardware_esp32.md §12.6); the sum is what a CSL transmitter gets wrong, and it is taken
+ * off the start. */
+#define RADIO_TIMED_EARLY_US 47u
+/* How long before a timed frame's start the vector stops receiving and arms the event matrix: room for the
+ * vector's latency and the stop. */
+#define RADIO_TIMED_GUARD_US 400u
+#define ETM(offset) ESP32_REG(ESP32_MODEM_ETM_BASE, (offset))
 /* A received SFD raises an event only where its stamp is needed. */
 #ifdef RCP_TX_TIMING
 #define RADIO_EVENT_SFD ESP32_MAC_EVENT_RX_SFD_DONE
 #else
 #define RADIO_EVENT_SFD 0u
 #endif
+/* The LQI handed up: linear over this many dB above the board's sensitivity. */
+#define RADIO_LQI_SPAN_DB 20
 /* The MAC's transmit power index: 15 is +20 dBm, else 3 + (dBm + 15) / 3 from -15 dBm (ESP-IDF's mapping). */
 #define RADIO_POWER_MIN_DBM (-15)
 #define RADIO_POWER_MAX_DBM 20
@@ -157,11 +173,15 @@ static uint8_t radioSfdValid;
 /* The transmission is a timed one: its single attempt starts from the timer, and a moment it cannot meet
  * ends it. The Ack it received, copied before receive is re-armed, for the host. */
 static uint8_t radioTxTimed;
+/* Its start on the radio clock's low half, when the command is due; 1 once the event matrix holds it. */
+static uint32_t radioTxAtStartUs;
+static uint8_t radioTxArmed;
 static Radio_Frame radioTxAckFrame;
 static volatile uint8_t radioTxAckHave;
 #endif
 
 static volatile int radioEdState = RADIO_ED_IDLE;
+static int8_t radioSensDbm = -100;
 static volatile int8_t radioEdDbm;
 
 static void (*radioRxHandler)(const Radio_Frame *frame);
@@ -213,6 +233,20 @@ static void radioSetAckPending(uint8_t pending)
     uint32_t cfg = MAC(ESP32_MAC_ACK_FRAME_PENDING_EN) & ~ESP32_MAC_ACK_FRAME_PENDING;
 
     MAC(ESP32_MAC_ACK_FRAME_PENDING_EN) = cfg | (pending ? ESP32_MAC_ACK_FRAME_PENDING : 0u);
+}
+
+/* The LQI of a frame received at this RSSI (see the top of this file). */
+static uint8_t radioLqi(int8_t rssi)
+{
+    int d = (int)rssi - (int)radioSensDbm;
+
+    if (d <= 0)
+        return 0u;
+
+    if (d >= RADIO_LQI_SPAN_DB)
+        return 255u;
+
+    return (uint8_t)((d * 255) / RADIO_LQI_SPAN_DB);
 }
 
 static int radioRingRoom(void)
@@ -314,6 +348,10 @@ static void radioTxEnd(uint8_t status, uint8_t framePending)
     radioTxStatus = status;
     radioTxFramePending = framePending;
     radioTxEnded = 1u;
+#ifdef RCP_TX_TIMING
+    ETM(ESP32_ETM_CHENCLR) = 1u;
+    radioTxArmed = 0u;
+#endif
 
     if (radioState != RADIO_ST_SEND_ACK)
         radioToWish();
@@ -421,7 +459,7 @@ static int radioEnhAckSend(uint8_t len, uint8_t *pending, MacSec_AckResult *resu
         return 0;
 
     *pending = (uint8_t)MacSec_AckPending(&rx, &radioSrcMatch);
-    ieLen = MacSec_ProbeIe(sec, &rx, radioRxBuf[len], (int8_t)radioRxBuf[len - 1u], Board_Get()->rxSensitivityDbm, ie);
+    ieLen = MacSec_ProbeIe(sec, &rx, radioLqi((int8_t)radioRxBuf[len - 1u]), (int8_t)radioRxBuf[len - 1u], radioSensDbm, ie);
     n = MacSec_BuildEnhAck(sec, psdu, avail, radioExtAddr, *pending, ie, ieLen, &radioAckBuf[1], result);
 
     if (n == 0u)
@@ -482,7 +520,7 @@ static void radioRxDone(void)
 
         f->len = len;
         f->rssi = (int8_t)radioRxBuf[len - 1u];
-        f->lqi = radioRxBuf[len];
+        f->lqi = radioLqi(f->rssi);
         f->channel = radioChannel;
 #ifdef RCP_TX_TIMING
         /* The SFD's stamp, or one counted back from now when that event was not seen. */
@@ -525,7 +563,7 @@ static void radioTxAckKeep(void)
 
     radioTxAckFrame.len = len;
     radioTxAckFrame.rssi = (int8_t)radioRxBuf[len - 1u];
-    radioTxAckFrame.lqi = radioRxBuf[len];
+    radioTxAckFrame.lqi = radioLqi(radioTxAckFrame.rssi);
     radioTxAckFrame.channel = radioChannel;
     radioTxAckFrame.timestamp = radioSfdValid ? radioSfdUs
                                               : radioClockNow() - (uint64_t)(1u + len) * RADIO_OCTET_US;
@@ -536,6 +574,56 @@ static void radioTxAckKeep(void)
     radioTxAckFrame.ackKeyIndex = 0u;
     radioTxAckFrame.ackFrameCounter = 0u;
     radioTxAckHave = 1u;
+}
+#endif
+
+#ifdef RCP_TX_TIMING
+/* The guard before a timed frame: stop receiving, point the MAC at the frame, and leave its start to the event
+ * matrix at timer 0's next end. A moment the guard has already eaten completes as CCA_FAIL. */
+static void radioTxArm(void)
+{
+    int32_t rest;
+
+    radioStop();
+    MAC(ESP32_MAC_TXDMA_ADDR) = (uint32_t)radioTxBuf;
+    MAC(ESP32_MAC_RXDMA_ADDR) = (uint32_t)radioRxBuf;
+
+    if (radioTxCca)
+        MAC(ESP32_MAC_ED_SCAN_DURATION) = RADIO_CCA_SYMBOLS;
+
+    rest = (int32_t)(radioTxAtStartUs - (uint32_t)radioClockNow());
+
+    if (rest <= 0)
+    {
+        radioTxEnd(RADIO_TX_CCA_FAIL, 0u);
+        return;
+    }
+
+    ETM(ESP32_ETM_CHENCLR) = 1u;
+    ETM(ESP32_ETM_CH0_EVT_ID) = ESP32_ETM_EVT_ZB_TIMER0_OVERFLOW;
+    ETM(ESP32_ETM_CH0_TASK_ID) = radioTxCca ? ESP32_ETM_TASK_ZB_ED_TRIG_TX : ESP32_ETM_TASK_ZB_TX_START;
+    ETM(ESP32_ETM_CHENSET) = 1u;
+    MAC(ESP32_MAC_TIMER0_THRESHOLD) = (uint32_t)rest;
+    MAC(ESP32_MAC_COMMAND) = ESP32_MAC_CMD_TIMER0_START;
+    radioTxArmed = 1u;
+    radioState = RADIO_ST_TX;
+}
+
+/* Timer 0's end for a timed frame: the guard, or the moment itself, at which the hardware has started it. */
+static void radioTxTimedStep(void)
+{
+    if (radioTxArmed)
+    {
+        ETM(ESP32_ETM_CHENCLR) = 1u;
+        radioTxArmed = 0u;
+        return;
+    }
+
+    /* An Ack still going out holds the air past the moment. */
+    if (radioState == RADIO_ST_SEND_ACK)
+        radioTxEnd(RADIO_TX_CCA_FAIL, 0u);
+    else
+        radioTxArm();
 }
 #endif
 
@@ -564,8 +652,8 @@ __attribute__((section(".iram.text.esp32_radio"))) static void radioIsr(void)
         MAC(ESP32_MAC_COMMAND) = ESP32_MAC_CMD_TIMER0_STOP;
 
 #ifdef RCP_TX_TIMING
-        if (radioTxTimed && radioState == RADIO_ST_SEND_ACK)
-            radioTxEnd(RADIO_TX_CCA_FAIL, 0u);
+        if (radioTxTimed)
+            radioTxTimedStep();
         else
 #endif
         if (radioState == RADIO_ST_SEND_ACK)
@@ -719,6 +807,7 @@ int Radio_Init(void)
     radioSetAckPending(0u);
 
     SrcMatch_Init(&radioSrcMatch);
+    radioSensDbm = Board_Get()->rxSensitivityDbm;
     radioPowerDbm = 0;
     radioApplyPower();
     radioApplyFilter();
@@ -942,9 +1031,9 @@ int Radio_Tx(const uint8_t *psdu, uint8_t len, int8_t dbm, int cca, int maxRetri
 }
 
 #ifdef RCP_TX_TIMING
-/* One attempt, started from timer 0 so that the end of the SFD is at the antenna at sfdEndUs: ahead of it by
- * the preamble and SFD, and by the ramp-up of the command it takes. A moment already gone completes as
- * CCA_FAIL (hal/radio.h); the watchdog counts from the moment, not from now. */
+/* One attempt, started by the event matrix so that the end of the SFD is at the antenna at sfdEndUs: ahead of
+ * it by the preamble and SFD, and by the ramp-up of the task that starts it. A moment already gone completes
+ * as CCA_FAIL (hal/radio.h); the watchdog counts from the moment, not from now. */
 int Radio_TxAt(const uint8_t *psdu, uint8_t len, int8_t dbm, int cca, uint32_t sfdEndUs, void *token)
 {
     uint8_t i;
@@ -977,20 +1066,25 @@ int Radio_TxAt(const uint8_t *psdu, uint8_t len, int8_t dbm, int cca, uint32_t s
     radioTxNb = 0u;
     radioTxBe = RADIO_MIN_BE;
     radioTxRetriesLeft = 0;
-
-    lead = (int32_t)(sfdEndUs - (uint32_t)radioClockNow()) - (int32_t)RADIO_SHR_US
-           - (int32_t)(radioTxCca ? RADIO_CCA_TX_RAMPUP_US : RADIO_TX_RAMPUP_US);
+    radioTxArmed = 0u;
+    radioTxAtStartUs = sfdEndUs - RADIO_SHR_US - (radioTxCca ? RADIO_CCA_TX_RAMPUP_US : RADIO_TX_RAMPUP_US)
+                       - RADIO_TIMED_EARLY_US;
+    lead = (int32_t)(radioTxAtStartUs - (uint32_t)radioClockNow());
     Tick_GetMs(&ms);
     radioTxStartMs = ms + (lead > 0 ? (uint32_t)lead / 1000u : 0u);
 
-    if (lead <= 0)
+    if (lead > (int32_t)RADIO_TIMED_GUARD_US)
+    {
+        MAC(ESP32_MAC_TIMER0_THRESHOLD) = (uint32_t)lead - RADIO_TIMED_GUARD_US;
+        MAC(ESP32_MAC_COMMAND) = ESP32_MAC_CMD_TIMER0_START;
+    }
+    else if (lead <= 0 || radioState == RADIO_ST_SEND_ACK)
     {
         radioTxEnd(RADIO_TX_CCA_FAIL, 0u);
     }
     else
     {
-        MAC(ESP32_MAC_TIMER0_THRESHOLD) = (uint32_t)lead;
-        MAC(ESP32_MAC_COMMAND) = ESP32_MAC_CMD_TIMER0_START;
+        radioTxArm();
     }
 
     HAL_IrqUnlock();

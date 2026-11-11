@@ -159,6 +159,17 @@
 #define ESP32_MAC_ACK_FRAME_PENDING_EN 0x06Cu
 #define ESP32_MAC_ACK_FRAME_PENDING (1u << 0) /* the Frame Pending bit of the next hardware Ack */
 #define ESP32_MAC_ACK_TX_ACK_TIMEOUT_SHIFT 16u /* [31:16] the Ack-transmit timeout: never cleared */
+/* The modem's event matrix (at the chip's ESP32_MODEM_ETM_BASE): a channel, once enabled, starts its task at
+ * its event, in hardware. */
+#define ESP32_ETM_CHEN 0x000u
+#define ESP32_ETM_CHENSET 0x004u
+#define ESP32_ETM_CHENCLR 0x008u
+#define ESP32_ETM_CH0_EVT_ID 0x018u
+#define ESP32_ETM_CH0_TASK_ID 0x01Cu
+#define ESP32_ETM_CH_STRIDE 0x008u
+#define ESP32_ETM_EVT_ZB_TIMER0_OVERFLOW 59u
+#define ESP32_ETM_TASK_ZB_ED_TRIG_TX 64u /* a CCA, and the transmission after it */
+#define ESP32_ETM_TASK_ZB_TX_START 68u
 #define ESP32_MAC_ENHACK_DONE 0x07Cu /* write 1: the Enhanced Ack in the transmit buffer is ready */
 #define ESP32_MAC_TXDMA_ADDR 0x0D0u
 #define ESP32_MAC_RXDMA_ADDR 0x0E0u

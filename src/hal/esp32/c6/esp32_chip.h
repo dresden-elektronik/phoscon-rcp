@@ -37,6 +37,7 @@
 #define ESP32_LPPERI_BASE 0x600B2800u
 #define ESP32_LPPERI_RNG_DATA 0x008u /* a random word per read */
 #define ESP32_MODEM_SYSCON_BASE 0x600A9800u
+#define ESP32_MODEM_ETM_BASE 0x600A8800u /* the modem's event matrix: an event of its MAC starts a task of it */
 #define ESP32_MODEM_LPCON_BASE 0x600AF000u
 
 /* ---- Interrupt sources: the interrupt matrix's map register for source n is at INTMTX + 4n ---- */
