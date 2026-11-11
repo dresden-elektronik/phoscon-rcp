@@ -400,26 +400,30 @@ static void radioTxNoAck(void)
 
 /* ---- receive, in the vector ---- */
 
-/* The Ack's Frame Pending bit for the frame just received, decided before the MAC sends the Ack: a Data
- * Request gets the table's answer, or "pending" while the table is off; anything else gets 0
+/* The Ack's Frame Pending bit for the frame just received, decided before the MAC sends the Ack, by
+ * Mac_AckDecide's rule (rcp/mac.c): a Data Request, or a secured command, which is taken for one because its
+ * identifier is encrypted, gets the table's answer, or "pending" while the table is off; anything else gets 0
  * (docs/ack-pending-frame.md). */
 static uint8_t radioPendingFor(const uint8_t *psdu, uint8_t len)
 {
     Mac_Hdr hdr;
 
-    if (!Mac_ParseHeader(psdu, len, &hdr) || !Mac_IsDataRequest(&hdr, psdu, len))
+    if (!Mac_ParseHeader(psdu, len, &hdr))
+        return 0u;
+
+    if (!(hdr.type == MAC_TYPE_COMMAND && hdr.security) && !Mac_IsDataRequest(&hdr, psdu, len))
         return 0u;
 
     if (!radioSrcMatch.enabled)
         return 1u;
 
-    if (hdr.srcMode == 2u)
+    if (hdr.srcMode == MAC_ADDR_MODE_SHORT)
         return (uint8_t)SrcMatch_HasShort(&radioSrcMatch, hdr.srcShort);
 
-    if (hdr.srcMode == 3u)
+    if (hdr.srcMode == MAC_ADDR_MODE_EXT)
         return (uint8_t)SrcMatch_HasExt(&radioSrcMatch, hdr.srcExt);
 
-    return 0u;
+    return hdr.security ? 1u : 0u;
 }
 
 /* 1 when the MAC acknowledges the frame just received by itself: it asks for an Ack, is a 2003 or 2006
