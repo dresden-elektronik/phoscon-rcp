@@ -267,6 +267,15 @@ static void radioTxStartNow(void)
     }
 }
 
+/* Now, or once the Ack the MAC is sending is out: stopping it there would lose the Ack. */
+static void radioTxStartSoon(void)
+{
+    if (radioState == RADIO_ST_SEND_ACK)
+        radioTxDue = 1u;
+    else
+        radioTxStartNow();
+}
+
 /* One attempt: after its backoff when CCA is asked for, at once when not. The MAC keeps receiving while
  * the backoff runs. */
 static void radioTxAttempt(void)
@@ -280,7 +289,7 @@ static void radioTxAttempt(void)
 
     if (!radioTxCca)
     {
-        radioTxStartNow();
+        radioTxStartSoon();
         return;
     }
 
@@ -288,7 +297,7 @@ static void radioTxAttempt(void)
 
     if (wait == 0u)
     {
-        radioTxStartNow();
+        radioTxStartSoon();
         return;
     }
 
@@ -296,13 +305,18 @@ static void radioTxAttempt(void)
     MAC(ESP32_MAC_COMMAND) = ESP32_MAC_CMD_TIMER0_START;
 }
 
+/* The transmission's end. During an Ack going out the MAC is left to it: the Ack's end re-arms receive, and
+ * a start it was to make is called off. */
 static void radioTxEnd(uint8_t status, uint8_t framePending)
 {
     radioTxPending = 0u;
+    radioTxDue = 0u;
     radioTxStatus = status;
     radioTxFramePending = framePending;
     radioTxEnded = 1u;
-    radioToWish();
+
+    if (radioState != RADIO_ST_SEND_ACK)
+        radioToWish();
 }
 
 /* A busy channel: back off again with a larger exponent, or give up after macMaxCSMABackoffs. */
@@ -897,7 +911,7 @@ int Radio_Tx(const uint8_t *psdu, uint8_t len, int8_t dbm, int cca, int maxRetri
 
     HAL_IrqLock();
 
-    if (radioBusy() || radioState == RADIO_ST_SEND_ACK || radioState == RADIO_ST_ED || radioTxEnded)
+    if (radioBusy() || radioState == RADIO_ST_ED || radioTxEnded)
     {
         HAL_IrqUnlock();
         return 0;
@@ -942,7 +956,7 @@ int Radio_TxAt(const uint8_t *psdu, uint8_t len, int8_t dbm, int cca, uint32_t s
 
     HAL_IrqLock();
 
-    if (radioBusy() || radioState == RADIO_ST_SEND_ACK || radioState == RADIO_ST_ED || radioTxEnded)
+    if (radioBusy() || radioState == RADIO_ST_ED || radioTxEnded)
     {
         HAL_IrqUnlock();
         return 0;
