@@ -24,10 +24,22 @@ What the MAC does by itself and what this file adds:
                 vector, and the next try after a missing Ack.
   energy        one measurement of 8 symbols at a time, on the channel the MAC holds.
 
+With timed transmit (RCP_TX_TIMING), for an OpenThread host:
+
+  Enhanced Ack  the MAC answers a 2015 frame that asks for an Ack only from a buffer software fills: the
+                vector builds it at RX_DONE, secured when the frame was (rcp/mac_sec.c), points the transmit
+                DMA at it and says it is ready, and the MAC sends it in the turnaround. Without a host's
+                keys a 2015 frame gets no Ack at all, where the AVR back-end sends an immediate one.
+  stamps        a received frame's timestamp is the radio clock at its SFD, taken in the vector at the MAC's
+                RX_SFD_DONE event.
+  timed frames  Radio_TxAt starts its one attempt from the MAC's timer 0, ahead of the moment by the ramp-up
+                ESP-IDF allows and the preamble and SFD; the Ack of each transmission is kept for the host.
+
 The machine's state changes only in the vector or with interrupts locked. The loop takes what the vector
 left: received frames, and the end of a transmission. */
 #include <stdint.h>
 
+#include "board.h"
 #include "dbg.h"
 #include "esp32_irq.h"
 #include "esp32_phy.h"
@@ -70,6 +82,20 @@ left: received frames, and the end of a transmission. */
 #define RADIO_FCF_ACK_REQUEST 0x20u
 #define RADIO_FCF_VERSION_SHIFT 12u
 #define RADIO_FCF_VERSION_2006 1u
+#define RADIO_FCF_VERSION_2015 2u
+/* What goes on air before the end of the SFD: four octets of preamble and the SFD, 32 us each. */
+#define RADIO_OCTET_US 32u
+#define RADIO_SHR_US (5u * RADIO_OCTET_US)
+/* ESP-IDF's ramp-up from the command to the first symbol: a transmission, and a CCA and the transmission
+ * after it (esp_ieee802154_dev.h). */
+#define RADIO_TX_RAMPUP_US 98u
+#define RADIO_CCA_TX_RAMPUP_US 256u
+/* A received SFD raises an event only where its stamp is needed. */
+#ifdef RCP_TX_TIMING
+#define RADIO_EVENT_SFD ESP32_MAC_EVENT_RX_SFD_DONE
+#else
+#define RADIO_EVENT_SFD 0u
+#endif
 /* The MAC's transmit power index: 15 is +20 dBm, else 3 + (dBm + 15) / 3 from -15 dBm (ESP-IDF's mapping). */
 #define RADIO_POWER_MIN_DBM (-15)
 #define RADIO_POWER_MAX_DBM 20
@@ -90,6 +116,8 @@ typedef enum
 
 static uint8_t radioRxBuf[RADIO_BUF] __attribute__((aligned(4)));
 static uint8_t radioTxBuf[RADIO_BUF] __attribute__((aligned(4)));
+/* The extended address as Spinel carries it, MSB first: an Enhanced Ack's nonce is built from it. */
+static uint8_t radioExtAddr[8];
 
 static volatile Radio_State radioState;
 static int radioRxWanted;
@@ -118,6 +146,20 @@ static int radioTxRetriesLeft;
 static volatile uint8_t radioTxEnded;
 static volatile uint8_t radioTxStatus;
 static volatile uint8_t radioTxFramePending;
+
+#ifdef RCP_TX_TIMING
+/* The host's security state while it has keys: then a 2015 frame gets its Enhanced Ack, built here. */
+static MacSec_State *volatile radioMacSec;
+static uint8_t radioAckBuf[RADIO_BUF] __attribute__((aligned(4)));
+/* The radio clock at the last received SFD, for the frame or Ack it starts. */
+static uint64_t radioSfdUs;
+static uint8_t radioSfdValid;
+/* The transmission is a timed one: its single attempt starts from the timer, and a moment it cannot meet
+ * ends it. The Ack it received, copied before receive is re-armed, for the host. */
+static uint8_t radioTxTimed;
+static Radio_Frame radioTxAckFrame;
+static volatile uint8_t radioTxAckHave;
+#endif
 
 static volatile int radioEdState = RADIO_ED_IDLE;
 static volatile int8_t radioEdDbm;
@@ -178,16 +220,23 @@ static int radioRingRoom(void)
     return (uint8_t)(radioRingHead - radioRingTail) < RADIO_RX_SLOTS;
 }
 
-/* The hardware Ack follows the mode, and in the filtered mode whether the ring has room. The register is
- * written only when the bit changes: this runs in the vector at a frame's end, inside the Ack's turnaround,
- * and a write to the MAC's configuration there loses the Ack. */
+/* The hardware Ack follows the mode, and in the filtered mode whether the ring has room; the Enhanced Ack
+ * follows them too, and whether the host has keys. The register is written only when a bit changes: this
+ * runs in the vector at a frame's end, inside the Ack's turnaround, and a write to the MAC's configuration
+ * there loses the Ack. */
 static void radioAckFollowsRoom(void)
 {
     uint32_t ctrl = MAC(ESP32_MAC_CTRL_CFG);
-    uint32_t want = ctrl & ~ESP32_MAC_CTRL_AUTO_ACK_TX;
+    uint32_t want = ctrl & ~(ESP32_MAC_CTRL_AUTO_ACK_TX | ESP32_MAC_CTRL_AUTO_ENHACK);
 
     if (radioFilter == RADIO_RX_FILTERED && radioRingRoom())
+    {
         want |= ESP32_MAC_CTRL_AUTO_ACK_TX;
+#ifdef RCP_TX_TIMING
+        if (radioMacSec != 0)
+            want |= ESP32_MAC_CTRL_AUTO_ENHACK;
+#endif
+    }
 
     if (want != ctrl)
         MAC(ESP32_MAC_CTRL_CFG) = want;
@@ -224,6 +273,11 @@ static void radioTxAttempt(void)
 {
     uint32_t wait;
 
+#ifdef RCP_TX_TIMING
+    if (radioTxTimed)
+        return;
+#endif
+
     if (!radioTxCca)
     {
         radioTxStartNow();
@@ -254,6 +308,15 @@ static void radioTxEnd(uint8_t status, uint8_t framePending)
 /* A busy channel: back off again with a larger exponent, or give up after macMaxCSMABackoffs. */
 static void radioTxChannelBusy(void)
 {
+#ifdef RCP_TX_TIMING
+    /* A timed frame has its one moment: a busy channel ends it, as a window gone does. */
+    if (radioTxTimed)
+    {
+        radioTxEnd(RADIO_TX_CCA_FAIL, 0u);
+        return;
+    }
+#endif
+
     radioTxNb++;
 
     if (radioTxNb > RADIO_MAX_BACKOFFS)
@@ -317,6 +380,47 @@ static int radioAcksItself(void)
            && (MAC(ESP32_MAC_CTRL_CFG) & ESP32_MAC_CTRL_AUTO_ACK_TX) != 0u;
 }
 
+#ifdef RCP_TX_TIMING
+/* 1 when the MAC waits for this file's Enhanced Ack to the frame just received: a 2015 frame that asks for
+ * an Ack, with the Enhanced Ack on (which also means the address filter passed it). */
+static int radioEnhAckDue(void)
+{
+    uint16_t fcf = (uint16_t)(radioRxBuf[1] | ((uint16_t)radioRxBuf[2] << 8));
+
+    return (fcf & RADIO_FCF_ACK_REQUEST) != 0u && ((fcf >> RADIO_FCF_VERSION_SHIFT) & 3u) == RADIO_FCF_VERSION_2015
+           && (MAC(ESP32_MAC_CTRL_CFG) & ESP32_MAC_CTRL_AUTO_ENHACK) != 0u;
+}
+
+/* The Enhanced Ack of the frame just received, into the Ack buffer, and the MAC told it is ready. 1 = it goes
+ * out; 0 = the frame must not be answered this way. */
+static int radioEnhAckSend(uint8_t len, uint8_t *pending, MacSec_AckResult *result)
+{
+    MacSec_State *sec = radioMacSec;
+    const uint8_t *psdu = &radioRxBuf[1];
+    uint8_t avail = (uint8_t)(len - RADIO_FCS_LEN);
+    uint8_t ie[MAC_SEC_PROBE_IE_MAX];
+    uint8_t ieLen;
+    uint8_t n;
+    MacSec_AckRx rx;
+
+    if (sec == 0 || len < 3u + RADIO_FCS_LEN || len > RADIO_PSDU_MAX || !MacSec_ParseAckRx(psdu, avail, &rx))
+        return 0;
+
+    *pending = (uint8_t)MacSec_AckPending(&rx, &radioSrcMatch);
+    ieLen = MacSec_ProbeIe(sec, &rx, radioRxBuf[len], (int8_t)radioRxBuf[len - 1u], Board_Get()->rxSensitivityDbm, ie);
+    n = MacSec_BuildEnhAck(sec, psdu, avail, radioExtAddr, *pending, ie, ieLen, &radioAckBuf[1], result);
+
+    if (n == 0u)
+        return 0;
+
+    /* As a transmission: the length counts the FCS the MAC appends. */
+    radioAckBuf[0] = n;
+    MAC(ESP32_MAC_TXDMA_ADDR) = (uint32_t)radioAckBuf;
+    MAC(ESP32_MAC_ENHACK_DONE) = 1u;
+    return 1;
+}
+#endif
+
 static void radioRxDone(void)
 {
     uint8_t len = radioRxBuf[0];
@@ -324,15 +428,27 @@ static void radioRxDone(void)
     uint8_t pending = 0u;
     Radio_Frame *f;
     uint8_t i;
+#ifdef RCP_TX_TIMING
+    MacSec_AckResult sec = {0, 0u, 0u};
 
+    if (!acks && radioEnhAckDue())
+    {
+        acks = radioEnhAckSend(len, &pending, &sec);
+
+        /* The MAC waits for an Ack that will not come: stop it, and it receives again below. */
+        if (!acks)
+            radioStop();
+    }
+    else
+#endif
     if (acks)
     {
         pending = radioPendingFor(&radioRxBuf[1], len);
         radioSetAckPending(pending);
-
-        if (pending)
-            radioCounters.ackFp++;
     }
+
+    if (acks && pending)
+        radioCounters.ackFp++;
 
     if (len < 3u || len > RADIO_PSDU_MAX)
     {
@@ -354,12 +470,22 @@ static void radioRxDone(void)
         f->rssi = (int8_t)radioRxBuf[len - 1u];
         f->lqi = radioRxBuf[len];
         f->channel = radioChannel;
+#ifdef RCP_TX_TIMING
+        /* The SFD's stamp, or one counted back from now when that event was not seen. */
+        f->timestamp = radioSfdValid ? radioSfdUs
+                                     : radioClockNow() - (uint64_t)(1u + len) * RADIO_OCTET_US;
+        radioSfdValid = 0u;
+        f->ackedSec = sec.secured;
+        f->ackKeyIndex = sec.keyIndex;
+        f->ackFrameCounter = sec.frameCounter;
+#else
         f->timestamp = radioClockNow();
-        f->crcOk = 1;
-        f->ackedFp = (int)pending;
         f->ackedSec = 0;
         f->ackKeyIndex = 0u;
         f->ackFrameCounter = 0u;
+#endif
+        f->crcOk = 1;
+        f->ackedFp = acks ? (int)pending : 0;
         radioRingHead = (uint8_t)(radioRingHead + 1u);
         radioAckFollowsRoom();
     }
@@ -370,6 +496,35 @@ static void radioRxDone(void)
         radioToWish();
 }
 
+#ifdef RCP_TX_TIMING
+/* The Ack of the transmission, out of the receive buffer before receive is re-armed over it. */
+static void radioTxAckKeep(void)
+{
+    uint8_t len = radioRxBuf[0];
+    uint8_t i;
+
+    if (len < 3u + RADIO_FCS_LEN || len > RADIO_PSDU_MAX)
+        return;
+
+    for (i = 0u; i < (uint8_t)(len - RADIO_FCS_LEN); ++i)
+        radioTxAckFrame.psdu[i] = radioRxBuf[1u + i];
+
+    radioTxAckFrame.len = len;
+    radioTxAckFrame.rssi = (int8_t)radioRxBuf[len - 1u];
+    radioTxAckFrame.lqi = radioRxBuf[len];
+    radioTxAckFrame.channel = radioChannel;
+    radioTxAckFrame.timestamp = radioSfdValid ? radioSfdUs
+                                              : radioClockNow() - (uint64_t)(1u + len) * RADIO_OCTET_US;
+    radioSfdValid = 0u;
+    radioTxAckFrame.crcOk = 1;
+    radioTxAckFrame.ackedFp = 0;
+    radioTxAckFrame.ackedSec = 0;
+    radioTxAckFrame.ackKeyIndex = 0u;
+    radioTxAckFrame.ackFrameCounter = 0u;
+    radioTxAckHave = 1u;
+}
+#endif
+
 static void radioIsr(void);
 
 __attribute__((section(".iram.text.esp32_radio"))) static void radioIsr(void)
@@ -379,11 +534,26 @@ __attribute__((section(".iram.text.esp32_radio"))) static void radioIsr(void)
 
     MAC(ESP32_MAC_EVENT_STATUS) = events;
 
-    /* A backoff's end: the attempt starts now, or once the Ack going out is done. */
+#ifdef RCP_TX_TIMING
+    /* The SFD of a frame or an Ack: its stamp, for the RX_DONE or ACK_RX_DONE that follows. */
+    if ((events & ESP32_MAC_EVENT_RX_SFD_DONE) != 0u)
+    {
+        radioSfdUs = radioClockNow();
+        radioSfdValid = 1u;
+    }
+#endif
+
+    /* A backoff's end: the attempt starts now, or once the Ack going out is done. A timed frame's moment
+     * cannot wait for an Ack: it is gone. */
     if ((events & ESP32_MAC_EVENT_TIMER0_OVERFLOW) != 0u && radioTxPending)
     {
         MAC(ESP32_MAC_COMMAND) = ESP32_MAC_CMD_TIMER0_STOP;
 
+#ifdef RCP_TX_TIMING
+        if (radioTxTimed && radioState == RADIO_ST_SEND_ACK)
+            radioTxEnd(RADIO_TX_CCA_FAIL, 0u);
+        else
+#endif
         if (radioState == RADIO_ST_SEND_ACK)
             radioTxDue = 1u;
         else
@@ -449,7 +619,12 @@ __attribute__((section(".iram.text.esp32_radio"))) static void radioIsr(void)
         /* fall through */
     case RADIO_ST_WAIT_ACK:
         if ((events & ESP32_MAC_EVENT_ACK_RX_DONE) != 0u)
+        {
+#ifdef RCP_TX_TIMING
+            radioTxAckKeep();
+#endif
             radioTxEnd(RADIO_TX_OK, (uint8_t)((radioRxBuf[1] & RADIO_FCF_FRAME_PENDING) != 0u));
+        }
         else if ((events & ESP32_MAC_EVENT_TX_ABORT) != 0u)
             radioTxNoAck();
         break;
@@ -508,7 +683,7 @@ int Radio_Init(void)
 
     MAC(ESP32_MAC_EVENT_EN) = ESP32_MAC_EVENT_TX_DONE | ESP32_MAC_EVENT_RX_DONE | ESP32_MAC_EVENT_ACK_TX_DONE
                               | ESP32_MAC_EVENT_ACK_RX_DONE | ESP32_MAC_EVENT_RX_ABORT | ESP32_MAC_EVENT_TX_ABORT
-                              | ESP32_MAC_EVENT_ED_DONE | ESP32_MAC_EVENT_TIMER0_OVERFLOW;
+                              | ESP32_MAC_EVENT_ED_DONE | ESP32_MAC_EVENT_TIMER0_OVERFLOW | RADIO_EVENT_SFD;
     MAC(ESP32_MAC_EVENT_STATUS) = ESP32_MAC_EVENT_ALL;
     /* Receive aborts that raise an event: the two an Ack sequence ends with, and the coexistence break,
      * after which the MAC stays idle. A bad CRC or a preamble with no frame it recovers from itself. */
@@ -677,8 +852,13 @@ int Radio_SetShortAddr(uint16_t addr, int on)
 /* ext8 is MSB first, as Spinel carries it; the registers hold it least significant octet first. */
 int Radio_SetExtAddr(const uint8_t ext8[8], int on)
 {
+    uint8_t i;
+
     if (radioState == RADIO_ST_DOWN || ext8 == 0)
         return 0;
+
+    for (i = 0u; i < 8u; ++i)
+        radioExtAddr[i] = ext8[i];
 
     if (!on)
     {
@@ -732,6 +912,10 @@ int Radio_Tx(const uint8_t *psdu, uint8_t len, int8_t dbm, int cca, int maxRetri
     (void)Radio_SetPower(dbm);
     radioTxPending = 1u;
     radioTxDue = 0u;
+#ifdef RCP_TX_TIMING
+    radioTxTimed = 0u;
+    radioTxAckHave = 0u;
+#endif
     Tick_GetMs(&radioTxStartMs);
     radioTxToken = token;
     radioTxCca = cca ? 1u : 0u;
@@ -742,6 +926,80 @@ int Radio_Tx(const uint8_t *psdu, uint8_t len, int8_t dbm, int cca, int maxRetri
     HAL_IrqUnlock();
     return 1;
 }
+
+#ifdef RCP_TX_TIMING
+/* One attempt, started from timer 0 so that the end of the SFD is at the antenna at sfdEndUs: ahead of it by
+ * the preamble and SFD, and by the ramp-up of the command it takes. A moment already gone completes as
+ * CCA_FAIL (hal/radio.h); the watchdog counts from the moment, not from now. */
+int Radio_TxAt(const uint8_t *psdu, uint8_t len, int8_t dbm, int cca, uint32_t sfdEndUs, void *token)
+{
+    uint8_t i;
+    uint32_t ms;
+    int32_t lead;
+
+    if (radioState == RADIO_ST_DOWN || psdu == 0 || len < 3u + RADIO_FCS_LEN || len > RADIO_TX_PSDU_MAX)
+        return 0;
+
+    HAL_IrqLock();
+
+    if (radioBusy() || radioState == RADIO_ST_SEND_ACK || radioState == RADIO_ST_ED || radioTxEnded)
+    {
+        HAL_IrqUnlock();
+        return 0;
+    }
+
+    radioTxBuf[0] = len;
+
+    for (i = 0u; i < (uint8_t)(len - RADIO_FCS_LEN); ++i)
+        radioTxBuf[1u + i] = psdu[i];
+
+    (void)Radio_SetPower(dbm);
+    radioTxPending = 1u;
+    radioTxDue = 0u;
+    radioTxTimed = 1u;
+    radioTxAckHave = 0u;
+    radioTxToken = token;
+    radioTxCca = cca ? 1u : 0u;
+    radioTxNb = 0u;
+    radioTxBe = RADIO_MIN_BE;
+    radioTxRetriesLeft = 0;
+
+    lead = (int32_t)(sfdEndUs - (uint32_t)radioClockNow()) - (int32_t)RADIO_SHR_US
+           - (int32_t)(radioTxCca ? RADIO_CCA_TX_RAMPUP_US : RADIO_TX_RAMPUP_US);
+    Tick_GetMs(&ms);
+    radioTxStartMs = ms + (lead > 0 ? (uint32_t)lead / 1000u : 0u);
+
+    if (lead <= 0)
+    {
+        radioTxEnd(RADIO_TX_CCA_FAIL, 0u);
+    }
+    else
+    {
+        MAC(ESP32_MAC_TIMER0_THRESHOLD) = (uint32_t)lead;
+        MAC(ESP32_MAC_COMMAND) = ESP32_MAC_CMD_TIMER0_START;
+    }
+
+    HAL_IrqUnlock();
+    return 1;
+}
+
+const Radio_Frame *Radio_TxAck(void)
+{
+    return radioTxAckHave ? &radioTxAckFrame : 0;
+}
+
+int Radio_SetMacSec(MacSec_State *state)
+{
+    HAL_IrqLock();
+    radioMacSec = state;
+
+    if (radioState != RADIO_ST_DOWN)
+        radioAckFollowsRoom();
+
+    HAL_IrqUnlock();
+    return 1;
+}
+#endif
 
 /* ---- energy detection ---- */
 
@@ -903,8 +1161,9 @@ void Radio_Poll(void)
 
     if (radioTxPending && !radioTxEnded)
     {
-        /* A transmission past its bound is ended here, and the radio goes back to the host's wish. */
-        if ((uint32_t)(ms - radioTxStartMs) > RADIO_TX_BOUND_MS)
+        /* A transmission past its bound is ended here, and the radio goes back to the host's wish. Modular and
+         * signed: a timed frame's bound starts at its moment, which may still be ahead. */
+        if ((int32_t)(ms - radioTxStartMs) > (int32_t)RADIO_TX_BOUND_MS)
         {
             HAL_IrqLock();
 
@@ -923,6 +1182,10 @@ void Radio_Poll(void)
     if (radioTxEnded)
     {
         token = radioTxToken;
+#ifdef RCP_TX_TIMING
+        if (radioTxAckHave)
+            radioPutFcs(&radioTxAckFrame);
+#endif
 
         if (radioTxStatus == RADIO_TX_OK || radioTxStatus == RADIO_TX_NO_ACK)
             radioCounters.txFrames++;

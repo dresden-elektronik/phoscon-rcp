@@ -11,7 +11,7 @@
 #
 # What this board builds today: the probe image boots, takes over the watchdogs, keeps the millisecond on
 # SYSTIMER and publishes its records on the USB Serial/JTAG port; the rcp image adds the radio and speaks
-# Spinel on the same port, without MAC security or timed transmit (docs/hardware_esp32.md §12.6).
+# Spinel on the same port, with MAC security, the Enhanced Ack and timed transmit (docs/hardware_esp32.md §12.6).
 
 set(DS_BOARD_SOURCES "${CMAKE_CURRENT_LIST_DIR}/board.c")
 set(DS_ESP32_CHIP "esp32c6")
@@ -93,4 +93,11 @@ if(DEFINED DS_MODE AND DS_MODE STREQUAL "rcp")
   include(${DS_SRC_DIR}/hal/esp32/phy/phy.cmake)
   list(APPEND DS_HAL_SOURCES ${DS_ESP32_PHY_SOURCES} ${DS_SRC_DIR}/hal/esp32/esp32_radio.c)
   list(APPEND DS_INCLUDE_DIRS ${DS_SRC_DIR}/hal/esp32/phy)
+  # What an OpenThread host requires: MAC security, the Enhanced Ack and timed transmit, with the block
+  # cipher in software for now. Accuracy is 802.15.4's own limit for the crystal, 40 ppm, as on the other
+  # boards; the uncertainty is theirs too, until this board's own is measured.
+  set(DS_THREAD ON)
+  set(DS_THREAD_TX_TIMING ON)
+  set(DS_CSL_ACCURACY_PPM 40)
+  set(DS_CSL_UNCERTAINTY_10US 20)
 endif()

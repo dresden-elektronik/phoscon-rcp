@@ -99,6 +99,7 @@
 #define ESP32_MAC_CMD_TIMER0_STOP 0x4Du
 #define ESP32_MAC_CTRL_CFG 0x004u
 #define ESP32_MAC_CTRL_AUTO_ACK_TX (1u << 0)
+#define ESP32_MAC_CTRL_AUTO_ENHACK (1u << 1) /* a version 2 frame's Enhanced Ack, from a buffer software fills */
 #define ESP32_MAC_CTRL_AUTO_ACK_RX (1u << 3)
 #define ESP32_MAC_CTRL_PAN_COORDINATOR (1u << 6)
 #define ESP32_MAC_CTRL_PROMISCUOUS (1u << 7)
@@ -131,6 +132,8 @@
 #define ESP32_MAC_EVENT_TX_ABORT (1u << 5)
 #define ESP32_MAC_EVENT_ED_DONE (1u << 6)
 #define ESP32_MAC_EVENT_TIMER0_OVERFLOW (1u << 8)
+#define ESP32_MAC_EVENT_TX_SFD_DONE (1u << 11)
+#define ESP32_MAC_EVENT_RX_SFD_DONE (1u << 12)
 #define ESP32_MAC_EVENT_ALL 0x1FFFu
 #define ESP32_MAC_RX_ABORT_EN 0x068u /* bit (reason - 1): which receive aborts raise RX_ABORT */
 #define ESP32_MAC_RX_ABORT_COEX_BREAK 7u
@@ -156,6 +159,7 @@
 #define ESP32_MAC_ACK_FRAME_PENDING_EN 0x06Cu
 #define ESP32_MAC_ACK_FRAME_PENDING (1u << 0) /* the Frame Pending bit of the next hardware Ack */
 #define ESP32_MAC_ACK_TX_ACK_TIMEOUT_SHIFT 16u /* [31:16] the Ack-transmit timeout: never cleared */
+#define ESP32_MAC_ENHACK_DONE 0x07Cu /* write 1: the Enhanced Ack in the transmit buffer is ready */
 #define ESP32_MAC_TXDMA_ADDR 0x0D0u
 #define ESP32_MAC_RXDMA_ADDR 0x0E0u
 #define ESP32_MAC_RXON_DELAY 0x110u
