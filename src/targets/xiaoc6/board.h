@@ -29,7 +29,8 @@ static const Board_Descriptor boardXiaoC6 = {
     COM_TX_MAX,
     PRODUCT_LINK_BAUD,
     BOARD_RADIO_ESP32_ON_DIE,
-    -100, /* a placeholder of the order Espressif's datasheet gives, not measured on this board */
+    -104, /* the ESP32-C6 datasheet's 1 % PER sensitivity (v1.5, Table 6-18); the bench board loses 2 % at a reported
+           * -104 dBm and 98 % 3 dB below it (docs/hardware_esp32.md §12.6) */
     10, /* a conservative cap until the board's output is measured; the MAC reaches +20 dBm */
     10,
     0u, /* the RF switch is GPIO-driven, not a SAMR21 front end (docs/hardware_esp32.md §12.4) */
