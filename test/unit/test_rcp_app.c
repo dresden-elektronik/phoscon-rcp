@@ -609,6 +609,52 @@ TU_TEST(a_link_that_refuses_for_a_while_answers_again)
     TU_EQ(lockedPasses, 0u);
 }
 
+/* What waited for the host when a RESET came is gone: the reset status is the first frame the link
+ * carries afterwards, ahead of every answer queued before it, and the link still answers. A port the host
+ * had closed holds such a backlog (docs/protocol.md §6). */
+TU_TEST(a_reset_drops_what_waited_for_the_host)
+{
+    Hdlc_Rx rx;
+    uint32_t i;
+    uint32_t frames = 0u;
+    int resetFirst = 0;
+
+    boot(7u);
+    fakeLinkRefuse = 1;
+
+    for (i = 0u; i < 20u; ++i)
+    {
+        request((uint8_t)(1u + i % 15u), SPINEL_CMD_PROP_VALUE_GET, PROPS_ID_NCP_VERSION, 0, 0u);
+        pass(1u);
+    }
+
+    request(3u, SPINEL_CMD_RESET, 2u, 0, 0u);
+    pass(1u);
+    Fake_LinkReset();
+    fakeLinkRefuse = 0;
+
+    for (i = 0u; i < 64u; ++i)
+        pass(1u);
+
+    Hdlc_RxInit(&rx);
+
+    for (i = 0u; i < fakeLinkOutLen; ++i)
+    {
+        if (Hdlc_RxByte(&rx, fakeLinkOut[i]) != HDLC_RX_FRAME)
+            continue;
+
+        if (frames++ == 0u)
+            resetFirst = rx.len >= 4u && rx.buf[0] == 0x80u && rx.buf[1] == SPINEL_CMD_PROP_VALUE_IS &&
+                         rx.buf[2] == (uint8_t)PROPS_ID_LAST_STATUS && rx.buf[3] == SPINEL_STATUS_RESET_SOFTWARE;
+    }
+
+    TU_EQ(frames, 1u);
+    TU_EQ(resetFirst, 1);
+    TU_EQ(stillAnswers(9u), 1);
+    TU_EQ(unhealthyPasses, 0u);
+    TU_EQ(lockedPasses, 0u);
+}
+
 /* The radio's step that no interrupt announces reaches the loop, which then skips its wait for one pass;
  * with nothing due the loop sleeps as before. */
 TU_TEST(a_radio_step_due_without_an_interrupt_asks_for_the_next_pass)
@@ -786,6 +832,7 @@ int main(void)
         {"the_counters_keep_their_period_across_the_tick_wrap", the_counters_keep_their_period_across_the_tick_wrap},
         {"a_setter_that_keeps_failing_does_not_stop_the_radio", a_setter_that_keeps_failing_does_not_stop_the_radio},
         {"a_link_that_refuses_for_a_while_answers_again", a_link_that_refuses_for_a_while_answers_again},
+        {"a_reset_drops_what_waited_for_the_host", a_reset_drops_what_waited_for_the_host},
         {"a_radio_step_due_without_an_interrupt_asks_for_the_next_pass",
          a_radio_step_due_without_an_interrupt_asks_for_the_next_pass},
         {"a_new_rate_follows_the_answer_that_set_it", a_new_rate_follows_the_answer_that_set_it},

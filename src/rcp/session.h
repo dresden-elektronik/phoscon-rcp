@@ -53,6 +53,8 @@ typedef struct
     /* 1 when a RESET came while txInFlight: the radio is still busy with the frame, but its completion
      * belongs to the session before the RESET and is not answered. */
     int txOrphan;
+    /* 1 from a RESET until Rcp_TakeReset reads it. */
+    int resetTaken;
     uint8_t txTid;
     /* Rcp_Healthy's clock on the transmission in flight: cleared at submit, started on its first look. */
     int txWatched;
@@ -69,6 +71,11 @@ void Rcp_Init(Rcp_Session *s, const Props_Identity *id);
 uint16_t Rcp_Reset(Rcp_Session *s, U_BStream *out);
 
 uint16_t Rcp_Feed(Rcp_Session *s, const uint8_t *payload, uint16_t len, U_BStream *out);
+
+/* 1 once for each RESET the session has answered since the last call, else 0: whatever still waits for
+ * the host was meant for the session before it, and the link drops it before the reset status goes
+ * (docs/protocol.md §6). */
+int Rcp_TakeReset(Rcp_Session *s);
 
 void Rcp_SetTxSink(Rcp_Session *s, Rcp_TxSink sink, void *ctx);
 

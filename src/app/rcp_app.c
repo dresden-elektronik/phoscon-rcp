@@ -936,6 +936,20 @@ void RcpApp_PushFromIrq(const uint8_t *buf, uint16_t len)
     }
 }
 
+/* A RESET's answer goes next. What waits was meant for the session before it, and a port the host had
+ * closed keeps it: a USB link holds it for the next host, up to the whole ring. A frame cut off here
+ * ends at the reset status's opening FEND, so the host drops one bad FCS. */
+static void rcpAppTxFlush(void)
+{
+    rcpTxHead = 0u;
+    rcpTxTail = 0u;
+    rcpTxCount = 0u;
+#ifdef RCP_UART_BITRATE
+    /* The octets the mark counted are gone, so a pending switch is due now. */
+    rcpLinkMark = 0u;
+#endif
+}
+
 /* A reply that does not fit is dropped whole and counted: a truncated HDLC frame is worse
  * than nothing. */
 static void rcpAppQueueReply(const uint8_t *reply, uint16_t len)
@@ -1014,13 +1028,19 @@ void RcpApp_Poll(void)
         if (r == HDLC_RX_FRAME)
         {
             U_BStream out;
+            uint16_t n;
 
             U_bstream_init(&out, reply, sizeof(reply));
 
 #ifdef RCP_THREAD
             rcpSession.props.radioTimeUs = Radio_ClockUs();
 #endif
-            if (Rcp_Feed(&rcpSession, rcpHdlc.buf, rcpHdlc.len, &out) > 0u)
+            n = Rcp_Feed(&rcpSession, rcpHdlc.buf, rcpHdlc.len, &out);
+
+            if (Rcp_TakeReset(&rcpSession))
+                rcpAppTxFlush();
+
+            if (n > 0u)
                 rcpAppQueueReply(reply, (uint16_t)U_bstream_pos(&out));
 #ifdef RCP_UART_BITRATE
             rcpAppLinkNote();

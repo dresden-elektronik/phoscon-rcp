@@ -1037,6 +1037,32 @@ TU_TEST(a_reset_during_a_transmission_drops_its_completion)
     TU_CHECK(Rcp_TxDone(&session, 8u, RADIO_TX_OK, 0, &bs) > 0u);
 }
 
+/* Rcp_TakeReset tells the link a RESET was answered, once per RESET, so what waited for the host before
+ * it is dropped and the reset status is the next frame the host reads (docs/protocol.md §6). Nothing
+ * else raises it, and a session starts with it clear. */
+TU_TEST(a_reset_is_taken_once_and_nothing_else_raises_it)
+{
+    static const uint8_t reset[2] = {0x81u, 0x01u};
+    static const uint8_t getVersion[3] = {0x82u, 0x02u, 0x01u};
+    uint8_t reply[OUT];
+
+    freshSession();
+    TU_EQ(Rcp_TakeReset(&session), 0);
+
+    TU_CHECK(feed(getVersion, sizeof(getVersion), reply) > 0u);
+    TU_EQ(Rcp_TakeReset(&session), 0);
+
+    TU_CHECK(feed(reset, sizeof(reset), reply) > 0u);
+    TU_EQ(Rcp_TakeReset(&session), 1);
+    TU_EQ(Rcp_TakeReset(&session), 0);
+
+    TU_CHECK(feed(reset, sizeof(reset), reply) > 0u);
+    TU_CHECK(feed(reset, sizeof(reset), reply) > 0u);
+    TU_EQ(Rcp_TakeReset(&session), 1);
+    TU_EQ(Rcp_TakeReset(&session), 0);
+    TU_EQ(Rcp_TakeReset(0), 0);
+}
+
 /* Rcp_Init is a session's start, whatever its memory held: no sink, nothing in flight, healthy. */
 TU_TEST(init_starts_a_session_with_nothing_in_flight)
 {
@@ -1449,6 +1475,7 @@ int main(void)
          a_timed_transmission_has_its_delay_on_top_of_the_limit},
         {"a_timed_transmission_is_not_stuck_before_its_moment", a_timed_transmission_is_not_stuck_before_its_moment},
         {"a_reset_during_a_transmission_drops_its_completion", a_reset_during_a_transmission_drops_its_completion},
+        {"a_reset_is_taken_once_and_nothing_else_raises_it", a_reset_is_taken_once_and_nothing_else_raises_it},
         {"init_starts_a_session_with_nothing_in_flight", init_starts_a_session_with_nothing_in_flight},
         {"a_reset_forgets_the_keys", a_reset_forgets_the_keys},
         {"a_secured_transmission_reaches_the_radio_encrypted_and_reports_its_header",

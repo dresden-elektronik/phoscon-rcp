@@ -30,11 +30,11 @@ BAR, ROW = 30, 60
 # one row per image: board, its name, .bin size in bytes, its build directory (a convention), and
 # whether a release builds it
 RCP = (
-    ('cb2', 'ConBee II', 52232, 'build/rcp', True),
-    ('rb2', 'RaspBee II', 47428, 'build/rb2-rcp', True),
-    ('cb3', 'ConBee III', 62376, 'build/fw-cb3-rcp', True),
-    ('cb3', 'ConBee III, own', 25120, 'build/fw-cb3-own', False),
-    ('cbrb1', 'ConBee I, RaspBee I', 45112, 'build/fw-cbrb1-rcp', True),
+    ('cb2', 'ConBee II', 52304, 'build/rcp', True),
+    ('rb2', 'RaspBee II', 47492, 'build/rb2-rcp', True),
+    ('cb3', 'ConBee III', 62432, 'build/fw-cb3-rcp', True),
+    ('cb3', 'ConBee III, own', 25156, 'build/fw-cb3-own', False),
+    ('cbrb1', 'ConBee I, RaspBee I', 45268, 'build/fw-cbrb1-rcp', True),
 )
 PROBE = (
     ('cb2', 'ConBee II', 31688, 'build/fw', True),
@@ -48,8 +48,8 @@ RCP_RAM = (
     ('cb2', 'ConBee II', 9424, 'build/rcp', True),
     ('rb2', 'RaspBee II', 12272, 'build/rb2-rcp', True),
     ('cb3', 'ConBee III', 14272, 'build/fw-cb3-rcp', True),
-    ('cb3', 'ConBee III, own', 13568, 'build/fw-cb3-own', False),
-    ('cbrb1', 'ConBee I, RaspBee I', 12024, 'build/fw-cbrb1-rcp', True),
+    ('cb3', 'ConBee III, own', 13572, 'build/fw-cb3-own', False),
+    ('cbrb1', 'ConBee I, RaspBee I', 12026, 'build/fw-cbrb1-rcp', True),
 )
 
 

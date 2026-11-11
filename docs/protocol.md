@@ -171,6 +171,8 @@ The RCP is live and serving Spinel from power-on: it answers the identity querie
 
 A frame still on its way when `RESET` arrives is finished by the radio but never answered: its completion carries a TID from before the reset, which a host that has started over may be using again. Until the radio is done, a transmit request is answered `BUSY`.
 
+What waits for the host when `RESET` arrives is dropped, so the reset status is the next whole frame the host reads; a frame cut short ends at the reset status's opening `0x7E`, and fails its FCS. A link that holds what it sends until a host reads it would otherwise hand the next host every frame the radio received after the previous host closed the port with the radio on, up to 4 KB.
+
 To **form a network** (coordinator) the host then sets, in order: `PHY_ENABLED = 1`, `PHY_CHAN`, `PHY_TX_POWER`, `MAC_15_4_LADDR`, `MAC_15_4_SADDR`, `MAC_15_4_PANID`, `MAC_RX_ON_WHEN_IDLE = 1`, `MAC_RAW_STREAM_ENABLED = 1`, and reads `PHY_TX_POWER`, `PHY_RSSI`, `PHY_RX_SENSITIVITY` and `PHY_CCA_THRESHOLD` for telemetry. From then on every frame the coordinator sends or receives goes through `STREAM_RAW`.
 
 To **start a sniffer** the host sets `PHY_ENABLED = 1`, `PHY_CHAN`, `MAC_PROMISCUOUS_MODE = 2` (FULL), `MAC_RX_ON_WHEN_IDLE = 1` and `MAC_RAW_STREAM_ENABLED = 1`, then reads unsolicited `STREAM_RAW` notifications. To stop, it clears `MAC_PROMISCUOUS_MODE`, then `PHY_ENABLED`, then `MAC_RAW_STREAM_ENABLED`.

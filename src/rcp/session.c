@@ -27,6 +27,7 @@ void Rcp_Init(Rcp_Session *s, const Props_Identity *id)
     s->txCtx = 0;
     s->txInFlight = 0;
     s->txOrphan = 0;
+    s->resetTaken = 0;
     s->txTid = 0u;
     s->txWatched = 0;
     s->txSinceMs = 0u;
@@ -57,12 +58,25 @@ uint16_t Rcp_Reset(Rcp_Session *s, U_BStream *out)
 
     if (s->txInFlight)
         s->txOrphan = 1;
+    s->resetTaken = 1;
     n = Spinel_BuildLastStatus(out, SPINEL_STATUS_RESET_SOFTWARE);
 
     if (n == 0u)
         s->dropped++;
 
     return n;
+}
+
+int Rcp_TakeReset(Rcp_Session *s)
+{
+    int taken;
+
+    if (s == 0)
+        return 0;
+
+    taken = s->resetTaken;
+    s->resetTaken = 0;
+    return taken;
 }
 
 static uint16_t rcpStatus(Rcp_Session *s, U_BStream *out, uint8_t tid, uint32_t status)
