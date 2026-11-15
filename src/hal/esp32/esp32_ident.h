@@ -4,7 +4,7 @@
  *
  * The factory MAC is 48 bits in eFuse block 1, read as two words: the low 32 bits, and a word holding
  * the high 16 in [15:0] and MAC_EXT in [31:16]. The EUI-64 is the MAC's top three octets, MAC_EXT's two
- * octets low byte first, then the MAC's bottom three - the composition ESP-IDF's mac_addr.c makes for
+ * octets high byte first, as the MAC's own are stored, then the MAC's bottom three - the composition ESP-IDF's mac_addr.c makes for
  * the 802.15.4 interface. A pure function over the two words, no register, so the host suite pins it;
  * esp32_nvram.c supplies them. */
 #ifndef ESP32_IDENT_H

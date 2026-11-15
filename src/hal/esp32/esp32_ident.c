@@ -18,8 +18,9 @@ int Esp32Ident_Eui64(uint32_t mac0, uint32_t mac1, uint8_t eui8[8])
     eui8[0] = (uint8_t)(high >> 8);
     eui8[1] = (uint8_t)high;
     eui8[2] = (uint8_t)(mac0 >> 24);
-    eui8[3] = (uint8_t)ext;
-    eui8[4] = (uint8_t)(ext >> 8);
+    /* MAC_EXT is stored as the MAC is, its first octet in the high byte. */
+    eui8[3] = (uint8_t)(ext >> 8);
+    eui8[4] = (uint8_t)ext;
     eui8[5] = (uint8_t)(mac0 >> 16);
     eui8[6] = (uint8_t)(mac0 >> 8);
     eui8[7] = (uint8_t)mac0;

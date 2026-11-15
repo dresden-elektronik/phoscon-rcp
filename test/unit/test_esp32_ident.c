@@ -4,8 +4,9 @@
 
    The vector is ESP-IDF's own example in mac_addr.c: base MAC 60:55:f9:f7:2c:a2 with MAC_EXT ff:fe becomes
    60:55:f9:ff:fe:f7:2c:a2. The eFuse words are what that MAC is in block 1: the low 32 bits of the 48, then
-   the high 16 with MAC_EXT above them, its first octet in the low byte (ESP-IDF's eFuse register header for
-   the C6, EFUSE_RD_MAC_SPI_SYS_0 and _1). The image has not yet read a board's words through this path. */
+   the high 16 with MAC_EXT above them. MAC_EXT is stored as the MAC is, its first octet in the high byte:
+   ESP-IDF's eFuse table for the C6 puts it at block 1 bits 56..63 and the second at 48..55. A bench XIAO
+   whose esptool reads MAC_EXT ff:fe reports the EUI-64 with ff fe in its middle on the air. */
 
 #include <stdint.h>
 
@@ -16,7 +17,7 @@ TU_TEST(esp_idfs_example_reads_as_it_says)
 {
     uint8_t eui[8];
 
-    TU_EQ(Esp32Ident_Eui64(0xF9F72CA2u, 0xFEFF6055u, eui), 1);
+    TU_EQ(Esp32Ident_Eui64(0xF9F72CA2u, 0xFFFE6055u, eui), 1);
     TU_EQ(eui[0], 0x60u);
     TU_EQ(eui[1], 0x55u);
     TU_EQ(eui[2], 0xF9u);
@@ -32,8 +33,8 @@ TU_TEST(mac_ext_is_taken_as_it_is_not_as_ff_fe)
     uint8_t eui[8];
 
     TU_EQ(Esp32Ident_Eui64(0x00000001u, 0x12340002u, eui), 1);
-    TU_EQ(eui[3], 0x34u);
-    TU_EQ(eui[4], 0x12u);
+    TU_EQ(eui[3], 0x12u);
+    TU_EQ(eui[4], 0x34u);
     TU_EQ(eui[7], 0x01u);
     TU_EQ(eui[1], 0x02u);
 }
@@ -43,7 +44,7 @@ TU_TEST(no_address_is_reported_as_none)
     uint8_t eui[8] = {0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA};
 
     TU_EQ(Esp32Ident_Eui64(0u, 0u, eui), 0);
-    TU_EQ(Esp32Ident_Eui64(0u, 0xFEFF0000u, eui), 0); /* MAC_EXT alone is not a MAC */
+    TU_EQ(Esp32Ident_Eui64(0u, 0xFFFE0000u, eui), 0); /* MAC_EXT alone is not a MAC */
     TU_EQ(Esp32Ident_Eui64(0xFFFFFFFFu, 0xFFFFFFFFu, eui), 0);
     TU_EQ(Esp32Ident_Eui64(0x00000001u, 0x00000100u, eui), 0); /* group: I/G set in the first octet */
     TU_EQ(eui[0], 0xAAu); /* untouched when there is no address */

@@ -32,7 +32,7 @@ One directory, `src/hal/esp32/`, drives the blocks these parts share; one direct
 | core | RV32IMAC, up to 160 MHz, single HP core plus an LP core; machine mode only here |
 | memory | 512 KiB HP SRAM at `0x40800000`, instruction and data alike; flash mapped through a 64 KiB-page MMU into one window from `0x42000000` shared by both buses |
 | clocks | 40 MHz crystal; SYSTIMER counts at 16 MHz from it whatever the CPU runs at. The HP root is the 480 MHz PLL divided by 3, 160 MHz; the CPU divides it by 1, 2 or 4, AHB by its own divider |
-| identity | the factory MAC in eFuse block 1: the low 32 bits at `EFUSE + 0x44`, the high 16 and `MAC_EXT` at `+0x48`. The EUI-64 is MAC[47:24], then `MAC_EXT` low byte first, then MAC[23:0], as ESP-IDF composes it for 802.15.4 |
+| identity | the factory MAC in eFuse block 1: the low 32 bits at `EFUSE + 0x44`, the high 16 and `MAC_EXT` at `+0x48`. The EUI-64 is MAC[47:24], then `MAC_EXT` high byte first, as the MAC itself is stored, then MAC[23:0], as ESP-IDF composes it for 802.15.4 |
 
 The bench XIAO's part reads as ESP32-C6FH4 revision v0.2 with 4 MB of embedded flash. Its `MAC_EXT` reads `FF FE`, the usual value, because the eFuse holds it: no constant is inserted, and the host suite pins a vector where it is not.
 
