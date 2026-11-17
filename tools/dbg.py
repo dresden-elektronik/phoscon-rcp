@@ -26,8 +26,8 @@ Where records come from:
 
 Examples:
   tools/dbg.py --list
-  tools/dbg.py --log /tmp/cb2emu16/frz.records.log
-  .venv/bin/python tools/dbg.py --port /dev/cu.usbmodem31432201 --follow
+  tools/dbg.py --log records.log
+  .venv/bin/python tools/dbg.py --port <port> --follow
   tools/dbg.py --file capture.bin --json
   tools/dbg.py --scratch "08 a0 01 00 01 b0 04 00 f3 00 ff ff ff ff ff ff"
 """
