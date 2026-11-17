@@ -2,6 +2,11 @@
 
 Each release of the firmware, newest first. A stick reports its release in `NCP_VERSION` (`README.md`).
 
+## 0.3.0
+
+- A RESET drops what still waits for the host, so nothing from before the reset follows the reset status. A stick on USB left receiving by a host that closed the port no longer hands the next host a backlog behind the status; the few frames the link delivers before the RESET arrives still come first (`docs/protocol.md`).
+- An experimental build target for the Seeed Studio XIAO ESP32-C6, outside the family; no release carries it (`docs/boards.md`).
+
 ## 0.2.0
 
 - ConBee III: the host may raise the link to 1 000 000 Bd with `UART_BITRATE`; a RESET, or a host that starts over at 115 200, returns it to 115 200 (`docs/protocol.md`).
