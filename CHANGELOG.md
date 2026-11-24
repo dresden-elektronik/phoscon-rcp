@@ -2,6 +2,10 @@
 
 Each release of the firmware, newest first. A stick reports its release in `NCP_VERSION` (`README.md`).
 
+## 0.3.1
+
+- ConBee II, RaspBee II: the Ack of a long frame goes out in its slot. It left up to about 370 µs after a long frame, too late for a sender that waits less, so a sleepy Thread child such as an IKEA MYGGBETT never attached directly to the stick; it now leaves about 200 µs after a frame of any length (`docs/ack-pending-frame.md`).
+
 ## 0.3.0
 
 - A RESET drops what still waits for the host, so nothing from before the reset follows the reset status. A stick on USB left receiving by a host that closed the port no longer hands the next host a backlog behind the status; the few frames the link delivers before the RESET arrives still come first (`docs/protocol.md`).
