@@ -126,7 +126,7 @@ Full-speed device; `GCLK_USB` must be 48 MHz ±0.25 %.
 **Receive.**
 
 - `IRQ_STATUS` has one reader, the radio vector: a read clears it. The mask covers every cause the driver consumes.
-- A frame is read in one access: PHY status, PHR, PSDU, LQI, ED, RX status (bit 7 the CRC). The frame's RSSI is `−94 + ED` dBm.
+- A Frame Buffer read delivers PHY status, PHR, PSDU, LQI, ED and RX status (bit 7 the CRC). The last three are appended by the radio, not stored in the buffer: they follow PHR-many PSDU octets, so with the PHR first written to 0 by SRAM access a five-octet read returns them at once, measured equal to a whole read's on 585 frames. The frame's RSSI is `−94 + ED` dBm.
 - `TRX_CTRL_2` bit 7 (`RX_SAFE_MODE`) keeps a received frame from being overwritten until its read ends. Bit 5 is the scrambler, set at reset: writing `0x20` for protection changes nothing.
 - Every receive mode runs in basic `RX_ON`, where the radio neither filters nor acknowledges; the vector filters in software and composes the Ack (`docs/ack-pending-frame.md`).
 
@@ -134,7 +134,7 @@ Full-speed device; `GCLK_USB` must be 48 MHz ±0.25 %.
 
 **The IRQ line** is level-sensitive (edge detection would need a GCLK route that does not commit on this board) with `WAKEUP` set: without it the request is not taken while the core sleeps, and the vector waits for the next SysTick.
 
-**The firmware-composed Ack.** The vector stamps its entry, reads the frame, decides, writes the four Ack octets and issues `TX_START` 167 µs after the stamp, so the preamble starts 192 µs after the frame. The worst of 1 500 exchanges started at 200 µs.
+**The firmware-composed Ack.** The vector stamps its entry, stops the receiver, reads the frame's first 24 octets with its LQI, ED and RX status, decides, writes the four Ack octets and issues `TX_START` 167 µs after the stamp, so the preamble starts 192 µs after the frame; the rest of the frame is read while the Ack is on air, or with the receiver already back in `RX_ON` when there is none (`docs/ack-pending-frame.md` §5). Reading the whole frame first costs 2 µs an octet, which would start a 112-octet frame's Ack 180 µs late.
 
 **AES.** On `cb2` the block cipher is the radio's engine, at 130 µs a block over the SPI against 325 µs for `aes_table.c`: about 2 ms in the main loop for a 121-octet frame. A block holds the bus, and the vector shares the engine, so the key is compared before each block. It is usable while receiving and while transmitting.
 

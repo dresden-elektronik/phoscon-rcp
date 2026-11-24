@@ -30,14 +30,14 @@ BAR, ROW = 30, 60
 # one row per image: board, its name, .bin size in bytes, its build directory (a convention), and
 # whether a release builds it
 RCP = (
-    ('cb2', 'ConBee II', 52304, 'build/rcp', True),
-    ('rb2', 'RaspBee II', 47492, 'build/rb2-rcp', True),
+    ('cb2', 'ConBee II', 52800, 'build/rcp', True),
+    ('rb2', 'RaspBee II', 47996, 'build/rb2-rcp', True),
     ('cb3', 'ConBee III', 62432, 'build/fw-cb3-rcp', True),
     ('cb3', 'ConBee III, own', 25156, 'build/fw-cb3-own', False),
     ('cbrb1', 'ConBee I, RaspBee I', 45268, 'build/fw-cbrb1-rcp', True),
 )
 PROBE = (
-    ('cb2', 'ConBee II', 31688, 'build/fw', True),
+    ('cb2', 'ConBee II', 32104, 'build/fw', True),
     ('rb2', 'RaspBee II', 26880, 'build/rb2', True),
     ('cb3', 'ConBee III', 7456, 'build/fw-cb3', True),
     ('cbrb1', 'ConBee I, RaspBee I', 6854, 'build/fw-cbrb1', True),

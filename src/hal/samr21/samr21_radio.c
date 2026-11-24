@@ -1147,16 +1147,15 @@ static void radioRxDeliver(void)
 
 /* ---- the radio vector -------------------------------------------------- */
 
-/* Start an Ack for the frame just read. FORCE_PLL_ON first, so a frame arriving behind this one cannot
- * overwrite the Ack in the shared buffer, then the octets [PHR, MPDU without its FCS], then TX_START on
- * schedule. Returns 1 when the Ack went on air. */
+/* Start an Ack for the frame just read, which stopped the receiver (radioIsrRxEnd): the octets [PHR, MPDU
+ * without its FCS] into the buffer, then TX_START on schedule. Returns 1 when the Ack went on air. */
 static int radioIsrAckStart(uint32_t stamp, const uint8_t *buf, uint8_t n)
 {
     uint8_t st = 0;
     uint32_t i;
     uint32_t elapsed;
 
-    if (!radioSetState(RADIO_CMD_FORCE_PLL_ON) || !Rf_FrameBufferWriteRaw(buf, n))
+    if (!Rf_FrameBufferWriteRaw(buf, n))
     {
         radio.isrSpiFail++;
         return 0;
@@ -1222,7 +1221,7 @@ static int radioIsrEnhAck(uint32_t stamp, const Rf_RxFrame *raw, const MacSec_Ac
     uint8_t n;
 
     ieLen = MacSec_ProbeIe(radio.macSec, rx, frame->lqi, frame->rssi, Board_Get()->rxSensitivityDbm, ie);
-    n = MacSec_BuildEnhAckHeader(radio.macSec, raw->psdu, raw->len, radio.extAddr, fp, ie, ieLen, &ack[1], &result, &later);
+    n = MacSec_BuildEnhAckHeader(radio.macSec, raw->psdu, raw->have, radio.extAddr, fp, ie, ieLen, &ack[1], &result, &later);
 
     if (n == 0u)
         return 0;
@@ -1247,9 +1246,15 @@ static int radioIsrEnhAck(uint32_t stamp, const Rf_RxFrame *raw, const MacSec_Ac
 }
 #endif
 
-/* TRX_END in RX_ON: one received frame. The whole frame is read before anything else - the
- * Frame Buffer is shared with transmission, so the Ack can only be written once its frame is
- * out - then filtered, answered, and queued. */
+/* TRX_END in RX_ON: one received frame, filtered, answered and queued. The Frame Buffer is shared with
+ * transmission, so what the Ack is decided from and what it overwrites must be out before it is written;
+ * the rest can wait. So the receiver is stopped first, which keeps the frame in the buffer, and only the
+ * frame's first MAC_ACK_DECIDE_MAX octets and its tail - LQI, ED and RX_STATUS - are read ahead of the
+ * decision. The rest follows once the Ack is on air - TX_START reads only the buffer's first octets - so
+ * the Ack's slot no longer moves with the frame's length. Without an Ack the receiver listens again before
+ * the rest is read: the next frame writes the buffer from its start, an octet every 32 us behind its
+ * 160 us SHR, and never reaches the rest, read from the head's end at 2 us an octet. An Ack on air
+ * reopens the receiver at its own TRX_END. */
 static void radioIsrRxEnd(uint32_t stamp, uint32_t stampUs)
 {
     Rf_RxFrame *raw = &radio.isrRaw;
@@ -1258,12 +1263,15 @@ static void radioIsrRxEnd(uint32_t stamp, uint32_t stampUs)
     int parsed;
     int fp = 0;
     int ackDue;
+    int onAir = 0;
     uint32_t t0 = Tick_CycleStamp();
     uint32_t c;
 
-    if (!Rf_FrameBufferRead(raw) || raw->len > RADIO_PSDU_MAX)
+    if (!radioSetState(RADIO_CMD_FORCE_PLL_ON) || !Rf_FrameHeadRead(raw, MAC_ACK_DECIDE_MAX) ||
+        (raw->have < raw->len && !Rf_FrameTailRead(raw)))
     {
         radio.isrReadFail++;
+        (void)radioSetState(RADIO_CMD_RX_ON);
         return;
     }
 
@@ -1272,8 +1280,8 @@ static void radioIsrRxEnd(uint32_t stamp, uint32_t stampUs)
     radio.isrFrames++;
 
     frame->len = raw->len;
-    /* The Frame Buffer's ED byte is the energy over this frame's reception, in 1 dB steps
-     * above -94 dBm (at86rf233 datasheet 8.5, Table 6-3). */
+    /* The ED byte is the energy over this frame's reception, in 1 dB steps above -94 dBm (at86rf233
+     * datasheet 8.5, Table 6-3). */
     frame->rssi = (int8_t)(RADIO_ED_BASE_DBM + (int)raw->ed);
     frame->lqi = raw->lqi;
     frame->channel = radio.channel;
@@ -1296,18 +1304,20 @@ static void radioIsrRxEnd(uint32_t stamp, uint32_t stampUs)
     {
         /* FCS-invalid frames reach RX_ON too; only the sniffer mode delivers them. */
         radio.counters.rxUnfiltered++;
+        (void)radioSetState(RADIO_CMD_RX_ON);
         return;
     }
 
-    parsed = Mac_ParseHeader(raw->psdu, raw->len, &hdr);
+    parsed = Mac_ParseHeader(raw->psdu, raw->have, &hdr);
 
     if (radio.rxFilter == RADIO_RX_FILTERED && (!parsed || !Mac_Filter(&hdr, &radio.ackCfg.filter)))
     {
         radio.counters.rxUnfiltered++;
+        (void)radioSetState(RADIO_CMD_RX_ON);
         return;
     }
 
-    ackDue = parsed && Mac_AckDecide(&hdr, raw->psdu, raw->len, frame->crcOk, &radio.ackCfg,
+    ackDue = parsed && Mac_AckDecide(&hdr, raw->psdu, raw->have, frame->crcOk, &radio.ackCfg,
                                      &radio.srcMatch, &fp);
 
     /* No room means the host never sees this frame, so it is not acknowledged either: the
@@ -1320,21 +1330,24 @@ static void radioIsrRxEnd(uint32_t stamp, uint32_t stampUs)
 
     if (ackDue)
     {
-        int sent;
-
 #ifdef RCP_TX_TIMING
         MacSec_AckRx rx;
 
-        if (hdr.version == RADIO_FCF_VERSION_2015 && radio.macSec != 0 && MacSec_ParseAckRx(raw->psdu, raw->len, &rx))
+        /* A version 2 frame's Enhanced Ack is longer than the head the decision needs: what it
+         * overwrites is read first. */
+        if (hdr.version == RADIO_FCF_VERSION_2015 && radio.macSec != 0 &&
+            Rf_FrameRestRead(raw, raw->len < MAC_SEC_ACK_MAX ? raw->len : (uint8_t)MAC_SEC_ACK_MAX) &&
+            MacSec_ParseAckRx(raw->psdu, raw->have, &rx))
         {
             fp = MacSec_AckPending(&rx, &radio.srcMatch);
-            sent = radioIsrEnhAck(stamp, raw, &rx, fp, frame);
+            onAir = radioIsrEnhAck(stamp, raw, &rx, fp, frame);
         }
         else
 #endif
-            sent = radioIsrAck(stamp, hdr.seq, fp);
+            onAir = radioIsrAck(stamp, hdr.seq, fp);
 
-        if (sent)
+        /* Without an Ack the frame is still delivered, unacknowledged. */
+        if (onAir)
         {
             radio.isrPhase = RADIO_ISR_ACK;
             radio.ackSince = radioNow();
@@ -1345,11 +1358,15 @@ static void radioIsrRxEnd(uint32_t stamp, uint32_t stampUs)
 
             frame->ackedFp = fp;
         }
-        else
-        {
-            /* Back to listening; the frame is still delivered, unacknowledged. */
-            (void)radioSetState(RADIO_CMD_RX_ON);
-        }
+    }
+
+    if (!onAir)
+        (void)radioSetState(RADIO_CMD_RX_ON);
+
+    if (!Rf_FrameRestRead(raw, raw->len))
+    {
+        radio.isrReadFail++;
+        return;
     }
 
     {

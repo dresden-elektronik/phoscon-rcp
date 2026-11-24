@@ -562,6 +562,80 @@ TU_TEST(a_data_request_with_extended_source_uses_the_extended_table)
     TU_EQ(fp, 1);
 }
 
+/* The decision a radio makes from a frame's first `have` octets, against the table holding `src`. */
+static int decideFromHead(const uint8_t *psdu, uint16_t have, const uint8_t *src, int *fp)
+{
+    Mac_AckCfg cfg;
+    SrcMatch_Table t;
+    Mac_Hdr hdr;
+
+    cfgDefault(&cfg);
+    SrcMatch_Init(&t);
+    t.enabled = 1u;
+    (void)SrcMatch_InsertExt(&t, src);
+    *fp = -1;
+
+    if (!Mac_ParseHeader(psdu, have, &hdr) || !Mac_Filter(&hdr, &cfg.filter))
+        return -1;
+
+    return Mac_AckDecide(&hdr, psdu, have, 1, &cfg, &t, fp);
+}
+
+TU_TEST(the_ack_is_decided_from_the_first_octets_of_any_frame)
+{
+    /* The longest header there is: both addresses extended, both PAN IDs (FCF 0xDC23), then the Data
+     * Request's identifier as the 24th octet. */
+    static const uint8_t pollLongest[] = {0x23u, 0xDCu, 0x05u, 0xE5u, 0xBEu, 0xCCu, 0xBBu, 0xAAu, 0x1Cu,
+                                          0x00u, 0x4Bu, 0x12u, 0x00u, 0xE5u, 0xBEu, 0x11u, 0x22u, 0x33u,
+                                          0x44u, 0x55u, 0x66u, 0x77u, 0x88u, 0x04u, 0x00u, 0x00u};
+    static const uint8_t *const frames[] = {pollLongest, pollExt, pollShort, 0};
+    static const uint16_t lens[] = {sizeof(pollLongest), sizeof(pollExt), sizeof(pollShort), 112u};
+    static uint8_t joinRequest[112];
+    uint8_t src[SRCMATCH_EXT_LEN];
+    uint16_t i;
+    uint8_t k;
+
+    /* A data frame as long as a Child ID Request, extended to extended, PAN-compressed (FCF 0xDC61). */
+    for (i = 0u; i < sizeof(joinRequest); ++i)
+        joinRequest[i] = (uint8_t)(0x5Au ^ i);
+
+    for (k = 0u; k < 3u + 8u + 2u; ++k)
+        joinRequest[k] = pollExt[k];
+
+    joinRequest[0] = 0x61u;
+
+    for (k = 0u; k < 8u; ++k)
+        joinRequest[13u + k] = pollExt[13u + k];
+
+    for (k = 0u; k < SRCMATCH_EXT_LEN; ++k)
+        src[k] = pollExt[13u + k];
+
+    TU_EQ(sizeof(pollLongest) - 2u, MAC_ACK_DECIDE_MAX);
+
+    for (i = 0u; i < 4u; ++i)
+    {
+        const uint8_t *psdu = frames[i] != 0 ? frames[i] : joinRequest;
+        uint16_t head = lens[i] < MAC_ACK_DECIDE_MAX ? lens[i] : MAC_ACK_DECIDE_MAX;
+        int fpWhole;
+        int fpHead;
+
+        TU_EQ(decideFromHead(psdu, lens[i], src, &fpWhole), 1);
+        TU_EQ(decideFromHead(psdu, head, src, &fpHead), 1);
+        TU_EQ(fpHead, fpWhole);
+    }
+
+    /* The bound is tight: one octet short of it, the longest poll's identifier is missing, and the
+     * table's answer with it. */
+    {
+        int fp;
+
+        TU_EQ(decideFromHead(pollLongest, sizeof(pollLongest), src, &fp), 1);
+        TU_EQ(fp, 1);
+        TU_EQ(decideFromHead(pollLongest, MAC_ACK_DECIDE_MAX - 1u, src, &fp), 1);
+        TU_EQ(fp, 0);
+    }
+}
+
 TU_TEST(a_disabled_table_claims_pending_for_every_poll)
 {
     Mac_AckCfg cfg;
@@ -714,6 +788,8 @@ int main(void)
                                      a_data_request_from_an_address_in_the_table_claims_pending},
                                     {"a_data_request_with_extended_source_uses_the_extended_table",
                                      a_data_request_with_extended_source_uses_the_extended_table},
+                                    {"the_ack_is_decided_from_the_first_octets_of_any_frame",
+                                     the_ack_is_decided_from_the_first_octets_of_any_frame},
                                     {"a_disabled_table_claims_pending_for_every_poll",
                                      a_disabled_table_claims_pending_for_every_poll},
                                     {"a_data_frame_never_claims_pending", a_data_frame_never_claims_pending},

@@ -518,6 +518,39 @@ TU_TEST(an_unsecured_frames_ack_has_no_mic_to_wait_for)
     TU_EQ(r.secured, 0);
 }
 
+/* A radio that answers before the whole frame is out hands over its first MAC_SEC_ACK_MAX octets: the
+ * longest version 2 header (both addresses extended, the destination PAN, the auxiliary header) and the
+ * Ack it gets both fit, so the Ack is the one the whole frame gets. */
+TU_TEST(the_longest_header_is_answered_from_the_acks_own_length)
+{
+    static uint8_t frame[112];
+    static uint8_t whole[MAC_SEC_ACK_MAX];
+    static const uint8_t head[] = {0x29u, 0xECu, 0x21u, 0xCEu, 0xFAu, 0x11u, 0x00u, 0xFFu, 0xEEu, 0xDDu,
+                                   0xCCu, 0xBBu, 0xAAu, 0x01u, 0x02u, 0x03u, 0x04u, 0x05u, 0x06u, 0x07u,
+                                   0x08u, 0x0Du, 0x09u, 0x08u, 0x07u, 0x06u, KEY_INDEX};
+    MacSec_AckResult r;
+    MacSec_AckMic later;
+    MacSec_AckRx rx;
+    uint8_t n;
+    uint8_t i;
+
+    for (i = 0u; i < sizeof(frame); ++i)
+        frame[i] = i < sizeof(head) ? head[i] : (uint8_t)(0xA5u ^ i);
+
+    freshState();
+    n = MacSec_BuildEnhAckHeader(&state, frame, sizeof(frame), ext8, 0, 0, 0u, ack, &r, &later);
+    TU_CHECK(n != 0u && n <= MAC_SEC_ACK_MAX);
+    TU_EQ(r.secured, 1);
+
+    for (i = 0u; i < n; ++i)
+        whole[i] = ack[i];
+
+    freshState();
+    TU_EQ(MacSec_ParseAckRx(frame, MAC_SEC_ACK_MAX, &rx), 1);
+    TU_EQ(MacSec_BuildEnhAckHeader(&state, frame, MAC_SEC_ACK_MAX, ext8, 0, 0, 0u, ack, &r, &later), n);
+    TU_CHECK(ackIs(whole, n));
+}
+
 TU_TEST(the_ack_pending_bit_follows_the_table)
 {
     SrcMatch_Table table;
@@ -765,6 +798,7 @@ int main(void)
         {"a_secured_frame_gets_a_secured_enhanced_ack", a_secured_frame_gets_a_secured_enhanced_ack},
         {"the_ack_in_two_steps_is_the_same_ack", the_ack_in_two_steps_is_the_same_ack},
         {"an_unsecured_frames_ack_has_no_mic_to_wait_for", an_unsecured_frames_ack_has_no_mic_to_wait_for},
+        {"the_longest_header_is_answered_from_the_acks_own_length", the_longest_header_is_answered_from_the_acks_own_length},
         {"the_ack_pending_bit_follows_the_table", the_ack_pending_bit_follows_the_table},
         {"frame_pending_is_in_the_acks_frame_control", frame_pending_is_in_the_acks_frame_control},
         {"an_extended_source_is_the_acks_destination", an_extended_source_is_the_acks_destination},

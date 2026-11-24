@@ -19,7 +19,8 @@
 typedef struct
 {
     uint8_t psdu[RADIO_PSDU_MAX];
-    uint8_t len; /* PHR: PSDU bytes, FCS included */
+    uint8_t len;  /* PHR: PSDU bytes, FCS included */
+    uint8_t have; /* PSDU bytes read so far: len once the frame is whole */
     uint8_t lqi;
     uint8_t ed;
     uint8_t rxStatus; /* bit 7 = RX_CRC_VALID (Table 6-3) */
@@ -60,6 +61,16 @@ int Rf_FrameBufferWrite(const uint8_t *psdu, uint8_t len);
  * transmits, so an octet not yet on air can still be changed (at86rf233 datasheet 9.3, 10.2), and this
  * mode raises no access violation for it. */
 int Rf_SramWrite(uint8_t addr, const uint8_t *src, uint8_t n);
+
+/* A received frame in parts, for a caller that stopped the receiver first, so the frame stays in the buffer
+ * however long it is read. The head is the PHR and the first `head` PSDU octets; a frame no longer than
+ * that comes whole, with its tail, and have == len. The rest reads on from `have` up to `upTo`. The tail
+ * is what a Frame Buffer read appends behind the PSDU - LQI, ED and RX_STATUS - which is not stored in the
+ * buffer (at86rf233 datasheet 6.3.2, 11.7): it follows PHR-many PSDU octets, so with the PHR written to 0
+ * it comes at once. That overwrites the PHR, so the frame is not read through the Frame Buffer afterwards. */
+int Rf_FrameHeadRead(Rf_RxFrame *out, uint8_t head);
+int Rf_FrameRestRead(Rf_RxFrame *out, uint8_t upTo);
+int Rf_FrameTailRead(Rf_RxFrame *out);
 
 /* The AES engine, at the bus's full speed (at86rf233 datasheet 11.1). Usable in every state but sleep, a
  * reception or a transmission included. Rf_AesEncrypt is one ECB block; the key stays set. */

@@ -653,6 +653,7 @@ int Rf_FrameBufferRead(Rf_RxFrame *out)
         uint8_t tail[3];
 
         out->len = phr;
+        out->have = phr;
         ok = rfSpiBurstRead(out->psdu, phr) && rfSpiBurstRead(tail, 3u);
         out->lqi = tail[0];
         out->ed = tail[1];
@@ -661,6 +662,102 @@ int Rf_FrameBufferRead(Rf_RxFrame *out)
 
     rfSelHigh();
     Rf_Unlock();
+    return ok;
+}
+
+/* The Frame Buffer read of Rf_FrameBufferRead, ended behind the head when the frame is longer: a short frame
+ * comes whole, its tail included, in the one access, and a long one is read on by SRAM access, which
+ * addresses the PSDU from 1 (at86rf233 datasheet 6.3.2, 6.3.3). */
+int Rf_FrameHeadRead(Rf_RxFrame *out, uint8_t head)
+{
+    uint8_t phr = 0u;
+    int ok;
+
+    if (out == 0)
+        return 0;
+
+    Rf_Lock();
+    rfSelLow();
+    ok = rfSpiTransceiveByte(RF_SPI_CMD_FRAMEBUFFER_READ, &out->phyStatus) && rfSpiBurstRead(&phr, 1u);
+
+    if (ok && phr > RADIO_PSDU_MAX)
+        ok = 0; /* as Rf_FrameBufferRead: corruption, not a frame */
+
+    if (ok)
+    {
+        out->len = phr;
+        out->have = phr > head ? head : phr;
+        ok = rfSpiBurstRead(out->psdu, out->have);
+
+        if (ok && out->have == phr)
+        {
+            uint8_t tail[3];
+
+            ok = rfSpiBurstRead(tail, 3u);
+            out->lqi = tail[0];
+            out->ed = tail[1];
+            out->rxStatus = tail[2];
+        }
+    }
+
+    rfSelHigh();
+    Rf_Unlock();
+    return ok;
+}
+
+int Rf_FrameRestRead(Rf_RxFrame *out, uint8_t upTo)
+{
+    uint8_t cmd[2];
+    int ok;
+
+    if (out == 0 || upTo > out->len)
+        return 0;
+
+    if (upTo <= out->have)
+        return 1;
+
+    cmd[0] = RF_SPI_CMD_SRAM_READ;
+    cmd[1] = (uint8_t)(1u + out->have);
+    Rf_Lock();
+    rfSelLow();
+    ok = rfSpiBurstWrite(cmd, 2u) && rfSpiBurstRead(&out->psdu[out->have], (uint16_t)(upTo - out->have));
+    rfSelHigh();
+    Rf_Unlock();
+
+    if (ok)
+        out->have = upTo;
+
+    return ok;
+}
+
+int Rf_FrameTailRead(Rf_RxFrame *out)
+{
+    static const uint8_t noPsdu[3] = {RF_SPI_CMD_SRAM_WRITE, 0x00u, 0x00u};
+    static const uint8_t cmd = RF_SPI_CMD_FRAMEBUFFER_READ;
+    uint8_t in[4] = {0u, 0u, 0u, 0u};
+    int ok;
+
+    if (out == 0)
+        return 0;
+
+    Rf_Lock();
+    rfSelLow();
+    ok = rfSpiBurstWrite(noPsdu, sizeof(noPsdu));
+    rfSelHigh();
+
+    if (ok)
+    {
+        rfSelLow();
+        ok = rfSpiBurstWrite(&cmd, 1u) && rfSpiBurstRead(in, sizeof(in));
+        rfSelHigh();
+    }
+
+    Rf_Unlock();
+
+    /* in[0] is the PHR just written. */
+    out->lqi = in[1];
+    out->ed = in[2];
+    out->rxStatus = in[3];
     return ok;
 }
 
@@ -910,17 +1007,13 @@ int Rf_HandlerIrqStatus(uint8_t *status)
  * two FCS positions itself, so nothing else is written. */
 int Rf_FrameBufferWriteRaw(const uint8_t *buf, uint8_t n)
 {
-    uint8_t in;
-    uint8_t i;
+    static const uint8_t cmd = RF_SPI_CMD_FRAMEBUFFER_WRITE;
     int ok;
 
+    /* Back to back, as every write on the Ack's way to its slot. */
     Rf_Lock();
     rfSelLow();
-    ok = rfSpiTransceiveByte(RF_SPI_CMD_FRAMEBUFFER_WRITE, &in);
-
-    for (i = 0; ok && i < n; ++i)
-        ok = rfSpiTransceiveByte(buf[i], &in);
-
+    ok = rfSpiBurstWrite(&cmd, 1u) && rfSpiBurstWrite(buf, n);
     rfSelHigh();
     Rf_Unlock();
     return ok;

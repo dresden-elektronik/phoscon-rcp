@@ -129,7 +129,7 @@ What has run on this firmware, unmodified. The hosts are other projects; this re
 
 | host | boards | what ran | not yet |
 |---|---|---|---|
-| OpenThread, as a Thread 1.4 host and in the Home Assistant border router app | ConBee II, ConBee III, ConBee I; the host alone on the RaspBee II | starts with no skip flag, leads a network, secured Enhanced Acks; a Matter plug and a sleepy Matter sensor on the ConBee III for hours, and on the ConBee II and ConBee I with the sensor behind the plug | a CSL child; a sleepy child directly on the ConBee II or ConBee I; the border router app on the RaspBee II |
+| OpenThread, as a Thread 1.4 host and in the Home Assistant border router app | ConBee II, ConBee III, ConBee I; the host alone on the RaspBee II | starts with no skip flag, leads a network, secured Enhanced Acks; a Matter plug and a sleepy Matter sensor on the ConBee III for hours, and on the ConBee II and ConBee I with the sensor behind the plug; a sleepy Matter sensor commissioned and polling directly on the ConBee II | a CSL child; a sleepy child directly on the ConBee I; a long run with a sleepy child on the ConBee II; the border router app on the RaspBee II |
 | Ziggurat, through Home Assistant's ZHA | ConBee II, ConBee I | forms a network, a bulb joins on the ConBee II and switches on both | a sleepy device, a long run |
 | zigbee-on-host, through Zigbee2MQTT | ConBee II | forms a network, a bulb joins and switches | a sleepy device, a long run |
 | Phoscon Zigbee Stack | ConBee II, ConBee III, ConBee I, RaspBee II, RaspBee I | the reference host, as coordinator and router | a long run on the RaspBee II or RaspBee I |

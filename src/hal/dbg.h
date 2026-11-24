@@ -292,7 +292,7 @@ enum
     DBG_RF_RSN_ISR_SPI_FAIL,      /* the Ack's state change, buffer write or TX_START failed */
     DBG_RF_RSN_ISR_ACK_STUCK,     /* an Ack never ended and the loop recovered RX */
     DBG_RF_RSN_ISR_ACK_CYCLES,    /* line = cycles from the TRX_END stamp to TX_START */
-    DBG_RF_RSN_ISR_READ_CYCLES,   /* line = cycles of the last Frame Buffer read */
+    DBG_RF_RSN_ISR_READ_CYCLES,   /* line = cycles of the last frame's reads ahead of its Ack decision */
     DBG_RF_RSN_ISR_CRC_BAD,       /* frames whose FCS failed (delivered only in FULL) */
     DBG_RF_RSN_ISR_READ_FAIL,     /* a Frame Buffer read failed or its PHR exceeded 127 */
     DBG_RF_RSN_ISR_MIC_CYCLES,    /* line = cycles from the RX_END stamp to the Enhanced Ack's MIC in the buffer */

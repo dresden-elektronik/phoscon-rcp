@@ -36,6 +36,11 @@
 #define MAC_ACK_LEN 4u
 #define MAC_ACK_PHR 5u
 
+/* The most octets of a frame that Mac_ParseHeader, Mac_Filter and Mac_AckDecide read: the longest
+ * addressing fields (FCF, sequence number, two PAN IDs, two extended addresses: 23 octets) and the
+ * command identifier behind them. A radio that answers before the whole frame is out reads this many. */
+#define MAC_ACK_DECIDE_MAX 24u
+
 /* Receive filter mode, the software counterpart of the transceiver's three configurations
  * (radio.h RADIO_RX_*). PAN and ALL accept every frame: the chip bypasses its third level
  * filter there too, and the app drops foreign-PAN frames in PAN mode (docs/architecture.md §3). */

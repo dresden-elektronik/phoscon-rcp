@@ -65,17 +65,19 @@ The vendor's first approach keeps the safe default and clears the bit only when 
 
 ## 5. The firmware's behaviour on the AT86RF233 and ATmega256RFR2
 
-The second way, in its simplest form: the whole frame is read once it has ended, then answered from the radio vector. Staged reads are not needed for the frames a coordinator answers. The ATmega256RFR2 runs the same scheme on its own vectors.
+The second way: the frame is answered from the radio vector once it has ended. On the AT86RF233 the vector reads only the frame's first octets ahead of the Ack and the rest behind its start, so the Ack's slot does not move with the frame's length; staged reads during reception are not needed. The ATmega256RFR2 decides from its memory-mapped Frame Buffer in place and copies the frame out behind the Ack's start where an Enhanced Ack needs the time.
 
 | step | what happens |
 |---|---|
 | stamp | SysTick's cycle counter at entry: no earlier than frame end + `tIRQ` (9 µs), so every later delay is counted from a point that can only make the Ack late, never early |
-| read | the whole frame in one Frame Buffer access, octets queued back to back: 2 µs per octet at the 4 MHz SCLK |
+| stop | `FORCE_PLL_ON`: no frame enters the buffer while the vector reads it, in whatever order |
+| read | the PHR and the first 24 octets (`MAC_ACK_DECIDE_MAX`: the longest addressing fields and a command identifier), octets queued back to back at 2 µs each. A frame no longer than that comes whole with its LQI, ED and RX status; for a longer one those three come from a second short read (`docs/hardware_samr21.md`) |
 | filter | `Mac_ParseHeader` and `Mac_Filter`: the transceiver's third level filter rules, applied in software |
-| decide | `Mac_AckDecide` against the radio's copy of the source-match table, held in on-air byte order |
+| decide | `Mac_AckDecide` against the radio's copy of the source-match table, held in on-air byte order. A version 2 frame's Enhanced Ack first reads up to `MAC_SEC_ACK_MAX` octets, all it overwrites |
 | room | no Ack when the receive ring is full: the host would never see the frame, so the sender must retry |
-| compose | `FORCE_PLL_ON`, then four octets into the Frame Buffer: PHR 5, FCF, DSN. The radio computes the FCS |
+| compose | four octets into the Frame Buffer: PHR 5, FCF, DSN. The radio computes the FCS |
 | send | busy-wait until stamp + 167 µs, then `TX_START`; the preamble starts 16 µs later, 192 µs after the frame at the earliest. An Ack that could not start by stamp + 441 µs is abandoned and counted |
+| rest | the frame's other octets by SRAM access, while the Ack is on air: the transmitter reads only the buffer's first octets. Without an Ack the radio returns to `RX_ON` first: the next frame writes the buffer from its start, an octet every 32 µs behind a 160 µs SHR, and never reaches the rest, read at 2 µs an octet. A promiscuous receiver so hears the Ack behind any frame |
 | end | the Ack's own `TRX_END` returns the radio to `RX_ON`. A loop-side recovery puts it back if that `TRX_END` never arrives within 3 ms |
 
 | mode | Ack | Frame Pending |
@@ -83,13 +85,13 @@ The second way, in its simplest form: the whole frame is read once it has ended,
 | FULL, NETWORK | never | — |
 | OFF | for a frame that passes the software filter, is addressed to this node and asks for one | Data Request: the table's answer, or 1 while `MAC_SRC_MATCH_ENABLED` is 0. Secured MAC command: treated as a Data Request, because its command identifier is hidden and a Thread poll is secured; with no source address to look up, 1. Anything else: 0 |
 
-Measured on two ConBee IIs: every Data Request and data frame is acknowledged, the slowest of 1 500 Acks starts 200 µs after its stamp, and no Frame Pending answer was wrong. The two-stick rig's Frame Pending cells check the table off, empty, and holding the peer's or another short or extended address (`docs/testing.md`). The bit this board *sent* is reported per frame as `MD_FLAG` bit 4; the bit it *received* in a transmission's Ack comes back with the transmit completion (`docs/protocol.md`).
+Measured on a ConBee II, with a sniffer's stamps: an Immediate Ack's turnaround is 204 µs with short addresses and 211 µs with extended ones, for every frame length from 12 to 127 octets, and an Enhanced Ack's 294 to 308 µs. No Frame Pending answer was wrong. The two-stick rig's Frame Pending cells check the table off, empty, and holding the peer's or another short or extended address (`docs/testing.md`). The bit this board *sent* is reported per frame as `MD_FLAG` bit 4; the bit it *received* in a transmission's Ack comes back with the transmit completion (`docs/protocol.md`).
 
 ## 6. Open measurements
 
 | open | how to settle it |
 |---|---|
-| how late an Ack may be for the senders a coordinator serves | the firmware abandons an Ack it cannot start by stamp + 441 µs; sweep the start delay against EFR32 and CC26xx senders |
+| how late an Ack may be for the senders a coordinator serves | the firmware abandons an Ack it cannot start by stamp + 441 µs. A RAIL sender at its defaults accepts a 401 µs turnaround; a sleepy Thread child, an IKEA MYGGBETT, rejects 371 µs and accepts 212 µs. Sweep the turnaround between the two against EFR32 and CC26xx senders |
 | whether a host's own traffic delays the vector | a soak with the host transmitting while polls arrive |
 
 ## 7. RAIL's Ack, on the ConBee III
